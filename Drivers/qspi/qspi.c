@@ -30,17 +30,10 @@ static QSPI_HandleTypeDef hqspi;
 static uint8_t is_memory_mapped = QSPI_MODE_INDIRECT ;
 static uint8_t is_quadMode_enable = 0 ;
 
-static int32_t MX_QSPI_MspInit(QSPI_HandleTypeDef* hqspi) ;
 static int32_t MX_QSPI_MspDeInit(QSPI_HandleTypeDef* hqspi) ;
 static int32_t MX_QUADSPI_Init(void) ;
 
 
-static  int32_t  MX_QSPI_MspInit(QSPI_HandleTypeDef* hqspi)
-
-{
-
-
-}
 
 /**
   * @brief QSPI MSP De-Initialization
