@@ -1,0 +1,17 @@
+Debug/
+Release/
+*.o
+*.elf
+*.bin
+*.hex
+*.map
+*.list
+*.su
+
+# CubeIDE / Eclipse workspace junk
+.metadata/
+.recommenders/
+
+# OS junk
+.DS_Store
+Thumbs.db
