@@ -15,3 +15,5 @@ Release/
 # OS junk
 .DS_Store
 Thumbs.db
+
+.settings/com.st.stm32cube.ide.mcu.sfrview.prefs
