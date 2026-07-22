@@ -20,7 +20,6 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "stm32h7xx_it.h"
-
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 /* USER CODE END Includes */
@@ -56,8 +55,7 @@
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
-
-
+extern DMA2D_HandleTypeDef hdma2d;
 /* USER CODE BEGIN EV */
 
 /* USER CODE END EV */
@@ -201,10 +199,6 @@ void SysTick_Handler(void)
 /* please refer to the startup file (startup_stm32h7xx.s).                    */
 /******************************************************************************/
 
-
-/**
-  * @brief This function handles DMA2D global interrupt.
-  */
 
 
 /* USER CODE BEGIN 1 */

@@ -26,10 +26,10 @@
 #include <stdio.h>
 
 
-#include "log.h"
-#include "touch.h"
-
-
+#include "qspi.h"
+#include "sdram.h"
+#include "lcd.h"
+#include "dma2d.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -51,6 +51,8 @@
 
 
 
+
+
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -63,54 +65,89 @@ static void MX_GPIO_Init(void);
 
 
 
+/* Convert a familiar 0xRRGGBB hex color to RGB565 */
+#define RGB888_TO_565(hex) \
+    ((uint16_t)((((hex) >> 8) & 0xF800) | (((hex) >> 5) & 0x07E0) | (((hex) >> 3) & 0x001F)))
 
+static void fill_buffer(uint32_t addr, uint16_t color565)
+{
+    uint16_t *fb = (uint16_t *)addr;
+    for (uint32_t i = 0; i < (LCD_WIDTH * LCD_HEIGHT); i++) {
+        fb[i] = color565;
+    }
+}
+
+void LCD_Test_ColorCycle(void)
+{
+
+
+    LCD_LayerConfig_t cfg = {
+        .x          = 0,
+        .y          = 0,
+        .width      = LCD_WIDTH,
+        .height     = LCD_HEIGHT,
+        .fb_address = LCD_FB_A,
+        .alpha      = 255,
+    };
+    LCD_LayerInit(LCD_LAYER_0, &cfg);
+
+    static const uint32_t colors[] = { 0x1A1A2E, 0xE94560, 0x0F3460, 0x16213E };
+    static const uint32_t fbs[2]   = { LCD_FB_A, LCD_FB_B };
+    uint8_t idx = 0;
+
+    while (1) {
+        uint32_t target_fb = fbs[idx % 2];
+
+        fill_buffer(target_fb, RGB888_TO_565(colors[idx % (sizeof(colors) / sizeof(colors[0]))]));
+
+        LCD_SwapBuffers(LCD_LAYER_0, target_fb);
+        LCD_WaitForSwap(LCD_LAYER_0);
+
+        HAL_Delay(1000);
+        idx++;
+    }
+}
+
+void DMA2D_Test_ColorCycle(void)
+{
+
+
+    LCD_LayerConfig_t cfg = {
+        .x          = 0,
+        .y          = 0,
+        .width      = LCD_WIDTH,
+        .height     = LCD_HEIGHT,
+        .fb_address = LCD_FB_A,
+        .alpha      = 255,
+    };
+    LCD_LayerInit(LCD_LAYER_0, &cfg);
+
+    static const uint32_t colors[] = { 0x1A1A2E, 0xE94560, 0x0F3460, 0x16213E };
+    static const uint32_t fbs[2]   = { LCD_FB_A, LCD_FB_B };
+    uint8_t idx = 0;
+
+    while (1) {
+        uint32_t target_fb = fbs[idx % 2];
+        uint32_t hex        = colors[idx % (sizeof(colors) / sizeof(colors[0]))];
+
+        /* DMA2D fills the OFF-screen buffer, we wait, then swap to it */
+        dma2d_fill(target_fb, LCD_WIDTH, 0, 0,
+                       LCD_WIDTH, LCD_HEIGHT,
+                       RGB888_TO_565(hex), NULL);
+        dma2d_wait(100);
+
+        LCD_SwapBuffers(LCD_LAYER_0, target_fb);
+        LCD_WaitForSwap(LCD_LAYER_0);
+
+        HAL_Delay(1000);
+        idx++;
+    }
+}
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void Touch_Demo_Init(void)
-{
-//    printf("\r\n========================================\r\n");
-//    printf("  GT911 BSP Driver Test\r\n");
-//    printf("========================================\r\n");
 
-    if (Touch_Init() != TOUCH_OK) {
-       // printf("[DEMO] GT911 init FAILED. Halting.\r\n");
-        while (1) { /* hang — check UART output for which step failed */ }
-    }
-
-   // printf("[DEMO] GT911 init OK. Touch the screen...\r\n");
-
-    /* Optional: confirm I2C is alive after init */
-    Touch_Debug_PingTest();
-}
-
-
-void Touch_demo_loop(void)
-{
-    /*
-     * Interrupt-driven path:
-     *   GT911 asserts INT (falling edge) → EXTI3_IRQHandler fires
-     *   → BSP_GT911_EXTI_Callback() sets s_touch_pending
-     *   → BSP_GT911_IsTouchPending() returns true here
-     *   → BSP_GT911_ReadTouch() reads data and clears the pending flag
-     */
-	Touch_Debug_CoordinateMonitor();   /* prints X/Y/area when finger detected */
-
-
-
-	TouchState_t touch = {0};
-    if (Touch_Read(&touch) == TOUCH_OK) {
-        if (touch.touch_count > 0) {
-            Log_Printf(LOG_LEVEL_INFO,"MAIN", "X=%d Y=%d\r\n", touch.points[0].x, touch.points[0].y);
-
-
-        }
-    }
-
-    HAL_Delay(10);   // ~100 Hz polling
-
-}
 /* USER CODE END 0 */
 
 /**
@@ -121,12 +158,12 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-	 SCB_EnableICache();
-	SCB_EnableDCache();
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
-
+	  SCB_EnableICache();
+	    SCB_EnableDCache();
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
 
@@ -144,11 +181,16 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
 
-  /* USER CODE BEGIN 2 */
 
-  Log_Init() ;
-  Log_Printf(LOG_LEVEL_INFO, "MAIN", "count") ;
-   Touch_Demo_Init() ;
+  SDRAM_Init() ;
+  LCD_Init() ;   // TODO : LOG ERROR  ;
+
+   dma2d_init()  ;// TODO : LOG ERROR ;
+
+  /* USER CODE BEGIN 2 */
+ DMA2D_Test_ColorCycle()  ;
+
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -156,7 +198,6 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-	  Touch_demo_loop() ;
 
     /* USER CODE BEGIN 3 */
   }
@@ -252,7 +293,21 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOG_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(LCD_RESET_GPIO_Port, LCD_RESET_Pin, GPIO_PIN_RESET);
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(LCD_BACKLIGHT_GPIO_Port, LCD_BACKLIGHT_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : LCD_RESET_Pin */
+  GPIO_InitStruct.Pin = LCD_RESET_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(LCD_RESET_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LED_Pin */
   GPIO_InitStruct.Pin = LED_Pin;
@@ -261,8 +316,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LED_GPIO_Port, &GPIO_InitStruct);
 
-
-
+  /*Configure GPIO pin : LCD_BACKLIGHT_Pin */
+  GPIO_InitStruct.Pin = LCD_BACKLIGHT_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(LCD_BACKLIGHT_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
