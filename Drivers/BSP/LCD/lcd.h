@@ -42,6 +42,10 @@ typedef struct {
     uint8_t  alpha;
 } LCD_LayerConfig_t;
 
+/* Callback invoked from LTDC line interrupt when buffer swap completes */
+typedef void (*LCD_SwapCompleteCallback_t)(void);
+
+
 LCD_StatusTypeDef   LCD_Init(void);
 LCD_StatusTypeDef   LCD_LayerInit(uint8_t layer, const LCD_LayerConfig_t *cfg);
 LCD_StatusTypeDef   LCD_SetFramebuffer(uint8_t layer, uint32_t fb_addr);
@@ -55,6 +59,9 @@ LCD_StatusTypeDef   LCD_SwapBuffers(uint8_t layer, uint32_t display_addr);
 LCD_StatusTypeDef   LCD_WaitForSwap(uint8_t layer);
 void                    LCD_VSYNC_Callback(LTDC_HandleTypeDef *hltdc);
 LTDC_HandleTypeDef     *LCD_GetHandle(void);
+
+
+void LCD_SetSwapCompleteCallback(LCD_SwapCompleteCallback_t cb);
 
 #ifdef __cplusplus
 }

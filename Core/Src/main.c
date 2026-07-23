@@ -19,13 +19,17 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
+#include "FreeRTOS.h" // inlcude freeRTOS
+#include "task.h"
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 
-
+#include "sdram.h"
+#include "gui.h"
 #include "log.h"
 #include "touch.h"
 
@@ -50,6 +54,7 @@
 /* Private variables ---------------------------------------------------------*/
 
 
+/* Definitions for defaultTask */
 
 /* USER CODE BEGIN PV */
 
@@ -59,58 +64,36 @@
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 
+
+
 /* USER CODE BEGIN PFP */
 
+void vBlinkTask(void *pvParameters)
+{
+    (void)pvParameters; /* unused */
 
+    for(;;)
+    {
 
+    	Log_Printf(LOG_LEVEL_INFO, "MAIN", " blink") ;
+    	HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin) ;
+    	vTaskDelay(pdMS_TO_TICKS(500));   /* 500 ms block */
+    }
+}
 
+void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
+{
+    (void)xTask;
+    Log_Printf(LOG_LEVEL_INFO, "vApplicationStackOverflowHook", "STACK OVERFLOW: %s",pcTaskName) ;
+
+    taskDISABLE_INTERRUPTS(); for (;;) {}
+}
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void Touch_Demo_Init(void)
-{
-//    printf("\r\n========================================\r\n");
-//    printf("  GT911 BSP Driver Test\r\n");
-//    printf("========================================\r\n");
-
-    if (Touch_Init() != TOUCH_OK) {
-       // printf("[DEMO] GT911 init FAILED. Halting.\r\n");
-        while (1) { /* hang — check UART output for which step failed */ }
-    }
-
-   // printf("[DEMO] GT911 init OK. Touch the screen...\r\n");
-
-    /* Optional: confirm I2C is alive after init */
-    Touch_Debug_PingTest();
-}
 
 
-void Touch_demo_loop(void)
-{
-    /*
-     * Interrupt-driven path:
-     *   GT911 asserts INT (falling edge) → EXTI3_IRQHandler fires
-     *   → BSP_GT911_EXTI_Callback() sets s_touch_pending
-     *   → BSP_GT911_IsTouchPending() returns true here
-     *   → BSP_GT911_ReadTouch() reads data and clears the pending flag
-     */
-	Touch_Debug_CoordinateMonitor();   /* prints X/Y/area when finger detected */
-
-
-
-	TouchState_t touch = {0};
-    if (Touch_Read(&touch) == TOUCH_OK) {
-        if (touch.touch_count > 0) {
-            Log_Printf(LOG_LEVEL_INFO,"MAIN", "X=%d Y=%d\r\n", touch.points[0].x, touch.points[0].y);
-
-
-        }
-    }
-
-    HAL_Delay(10);   // ~100 Hz polling
-
-}
 /* USER CODE END 0 */
 
 /**
@@ -121,7 +104,8 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-	 SCB_EnableICache();
+
+	SCB_EnableICache();
 	SCB_EnableDCache();
   /* USER CODE END 1 */
 
@@ -143,25 +127,42 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-
   /* USER CODE BEGIN 2 */
 
   Log_Init() ;
-  Log_Printf(LOG_LEVEL_INFO, "MAIN", "count") ;
-   Touch_Demo_Init() ;
+  Log_Printf(LOG_LEVEL_INFO, "MAIN", "Application Started") ;
+
+//  xTaskCreate(
+//         vBlinkTask,          /* Task function    */
+//         "Blink",             /* Name             */
+//         512,                 /* Stack (words)    */
+//         NULL,                /* Parameter        */
+//         5,                   /* Priority         */
+//         NULL                 /* Task handle      */
+//     );
+
+     SDRAM_Init();
+  	  gui_init();
+     /* Start the scheduler — this never returns */
+     vTaskStartScheduler();
+
+
   /* USER CODE END 2 */
+
+  /* Init scheduler */
+
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
     /* USER CODE END WHILE */
-	  Touch_demo_loop() ;
 
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
 }
+
 
 /**
   * @brief System Clock Configuration
@@ -272,6 +273,30 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
+
+/* USER CODE BEGIN Header_StartDefaultTask */
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM7 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
+
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM7)
+  {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
+
+  /* USER CODE END Callback 1 */
+}
 
 /**
   * @brief  This function is executed in case of error occurrence.

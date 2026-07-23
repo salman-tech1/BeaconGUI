@@ -29,11 +29,19 @@ typedef struct {
 
 static LCD_Layer_t s_layer[LCD_MAX_LAYER];
 
+static LCD_SwapCompleteCallback_t s_swap_complete_cb = NULL;
+
 /* ── Private prototypes ─────────────────────────────────────────────── */
 static void ltdc_clock_config(void);
 static void ltdc_gpio_config(void);
 static void lcd_reset(void);
 static void lcd_backlight(bool on);
+
+void LCD_SetSwapCompleteCallback(LCD_SwapCompleteCallback_t cb)
+{
+    s_swap_complete_cb = cb;
+}
+
 
 /*   LCD_Init : Bare-metal (no RTOS dependency)  */
 LCD_StatusTypeDef LCD_Init(void)
@@ -150,22 +158,22 @@ LCD_StatusTypeDef LCD_SwapBuffers(uint8_t layer, uint32_t display_addr)
  *  LCD_WaitForSwap — block (busy-wait) until LTDC ISR confirms swap
  *
  */
-LCD_StatusTypeDef LCD_WaitForSwap(uint8_t layer)
-{
-    if (layer >= LCD_MAX_LAYER) return LCD_ERROR;
-    if (!s_layer[layer].swap_pending) return LCD_OK;
-
-    uint32_t tick_start = HAL_GetTick();
-
-    while (s_layer[layer].swap_pending) {
-        if ((HAL_GetTick() - tick_start) > LCD_SWAP_TIMEOUT_MS) {
-        	// TODO : LOG
-            s_layer[layer].swap_pending = 0;
-            return LCD_TIMEOUT;
-        }
-    }
-    return LCD_OK;
-}
+//LCD_StatusTypeDef LCD_WaitForSwap(uint8_t layer)
+//{
+//    if (layer >= LCD_MAX_LAYER) return LCD_ERROR;
+//    if (!s_layer[layer].swap_pending) return LCD_OK;
+//
+//    uint32_t tick_start = HAL_GetTick();
+//
+//    while (s_layer[layer].swap_pending) {
+//        if ((HAL_GetTick() - tick_start) > LCD_SWAP_TIMEOUT_MS) {
+//        	// TODO : LOG
+//            s_layer[layer].swap_pending = 0;
+//            return LCD_TIMEOUT;
+//        }
+//    }
+//    return LCD_OK;
+//}
 
 /*
  *  LCD_VSYNC_Callback — called from HAL_LTDC_LineEventCallback
@@ -186,6 +194,10 @@ void LCD_VSYNC_Callback(LTDC_HandleTypeDef *hltdc)
             /* Clearing swap_pending last is what unblocks
              * LCD_WaitForSwap()'s polling loop */
             s_layer[i].swap_pending = 0;
+
+            if (s_swap_complete_cb) {
+                     s_swap_complete_cb();
+              }
         }
     }
 
