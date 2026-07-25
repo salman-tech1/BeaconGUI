@@ -15,5 +15,9 @@
 #define MODBUS_TASK_STACK_SIZE                512U   /* Words */
 #define MODBUS_TASK_PRIORITY                  3U     /* Medium-high */
 
+#define RENDERER_TASK_STACK_SIZE 4096
+#define RENDERER_TASK_PRIORITY   (tskIDLE_PRIORITY + 1)
+
+
 
 #endif /* TASKS_CONFIG_H_ */

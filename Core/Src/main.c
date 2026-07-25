@@ -29,10 +29,10 @@
 #include <stdio.h>
 
 #include "sdram.h"
-#include "gui.h"
 #include "log.h"
-#include "touch.h"
+#include "render.h"
 
+/* Include the screen interfaces */
 
 /* USER CODE END Includes */
 
@@ -68,18 +68,6 @@ static void MX_GPIO_Init(void);
 
 /* USER CODE BEGIN PFP */
 
-void vBlinkTask(void *pvParameters)
-{
-    (void)pvParameters; /* unused */
-
-    for(;;)
-    {
-
-    	Log_Printf(LOG_LEVEL_INFO, "MAIN", " blink") ;
-    	HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin) ;
-    	vTaskDelay(pdMS_TO_TICKS(500));   /* 500 ms block */
-    }
-}
 
 void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
 {
@@ -132,19 +120,15 @@ int main(void)
   Log_Init() ;
   Log_Printf(LOG_LEVEL_INFO, "MAIN", "Application Started") ;
 
-//  xTaskCreate(
-//         vBlinkTask,          /* Task function    */
-//         "Blink",             /* Name             */
-//         512,                 /* Stack (words)    */
-//         NULL,                /* Parameter        */
-//         5,                   /* Priority         */
-//         NULL                 /* Task handle      */
-//     );
 
-     SDRAM_Init();
-  	  gui_init();
-     /* Start the scheduler — this never returns */
-     vTaskStartScheduler();
+   SDRAM_Init();
+
+
+   renderer_init();
+
+  	    /* 5. Start the FreeRTOS Scheduler */
+   vTaskStartScheduler();
+
 
 
   /* USER CODE END 2 */
