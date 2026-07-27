@@ -6,7 +6,7 @@
  */
 
 #include "screen_dashboard.h"
-
+#include "screen_menu.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -170,6 +170,20 @@ static int s_connector_idx  = 0;
 static int s_footer_line_idx = 0;
 
 static int32_t s_battery_pct = 0;
+
+
+
+
+/* Forward declare the callback */
+static void menu_btn_event_cb(lv_event_t *e);
+
+
+/* The callback that talks to the global menu component */
+static void menu_btn_event_cb(lv_event_t *e)
+{
+    (void)e;
+    screen_menu_toggle();
+}
 
 /* ── Widget Factories ─────────────────────────────────────────────── */
 
@@ -356,23 +370,46 @@ static lv_obj_t *create_stat_row(lv_obj_t *parent, int32_t row_y, int32_t next_r
 
 static void create_top_bar(lv_obj_t *parent, int32_t w)
 {
-    lv_obj_t *menu = lv_label_create(parent);
-    lv_label_set_text(menu, ICON_MENU);
-    lv_obj_set_style_text_color(menu, C_TEXT, LV_PART_MAIN);
-    lv_obj_set_style_text_font(menu, FONT_MENU, LV_PART_MAIN);
-    lv_obj_set_pos(menu, SIDE_MARGIN, 12);
+	  /*
+	     * Wrap the icon in a transparent clickable button so we get
+	     * visual feedback and reliable touch targets
+	     */
+	    lv_obj_t *menu_btn = lv_btn_create(parent);
+	    lv_obj_set_size(menu_btn, 48, 48);
+	    lv_obj_set_pos(menu_btn, SIDE_MARGIN - 4, 8);
+	    lv_obj_remove_flag(menu_btn, LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_t *usb = lv_label_create(parent);
-    lv_label_set_text(usb, ICON_USB);
-    lv_obj_set_style_text_color(usb, C_TEXT, LV_PART_MAIN);
-    lv_obj_set_style_text_font(usb, FONT_TITLE, LV_PART_MAIN);
-    lv_obj_set_pos(usb, w - SIDE_MARGIN - 70, 20);
+	    /* Make the button completely invisible */
+	    lv_obj_set_style_bg_opa(menu_btn, LV_OPA_TRANSP, LV_PART_MAIN);
+	    lv_obj_set_style_border_width(menu_btn, 0, LV_PART_MAIN);
+	    lv_obj_set_style_shadow_width(menu_btn, 0, LV_PART_MAIN);
 
-    lv_obj_t *wifi = lv_label_create(parent);
-    lv_label_set_text(wifi, ICON_WIFI);
-    lv_obj_set_style_text_color(wifi, C_TEXT, LV_PART_MAIN);
-    lv_obj_set_style_text_font(wifi, FONT_TITLE, LV_PART_MAIN);
-    lv_obj_set_pos(wifi, w - SIDE_MARGIN - 30, 20);
+	    /* Show the divider color when pressed */
+	    lv_obj_set_style_bg_opa(menu_btn, LV_OPA_COVER, LV_STATE_PRESSED);
+	    lv_obj_set_style_bg_color(menu_btn, C_BORDER, LV_STATE_PRESSED);
+	    lv_obj_set_style_radius(menu_btn, 8, LV_STATE_PRESSED);
+
+	    lv_obj_add_event_cb(menu_btn, menu_btn_event_cb, LV_EVENT_CLICKED, NULL);
+
+	    /* The actual text icon */
+	    lv_obj_t *menu = lv_label_create(menu_btn);
+	    lv_label_set_text(menu, ICON_MENU);
+	    lv_obj_set_style_text_color(menu, C_TEXT, LV_PART_MAIN);
+	    lv_obj_set_style_text_font(menu, FONT_MENU, LV_PART_MAIN);
+	    lv_obj_center(menu);
+
+	    /* USB and WiFi stay exactly as they were */
+	    lv_obj_t *usb = lv_label_create(parent);
+	    lv_label_set_text(usb, ICON_USB);
+	    lv_obj_set_style_text_color(usb, C_TEXT, LV_PART_MAIN);
+	    lv_obj_set_style_text_font(usb, FONT_TITLE, LV_PART_MAIN);
+	    lv_obj_set_pos(usb, w - SIDE_MARGIN - 70, 20);
+
+	    lv_obj_t *wifi = lv_label_create(parent);
+	    lv_label_set_text(wifi, ICON_WIFI);
+	    lv_obj_set_style_text_color(wifi, C_TEXT, LV_PART_MAIN);
+	    lv_obj_set_style_text_font(wifi, FONT_TITLE, LV_PART_MAIN);
+	    lv_obj_set_pos(wifi, w - SIDE_MARGIN - 30, 20);
 }
 
 static void create_battery_gauge(lv_obj_t *parent, int32_t left_panel_x, int32_t left_panel_w,

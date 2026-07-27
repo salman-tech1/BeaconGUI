@@ -9,9 +9,12 @@
 #include "screen.h"
 #include "gui.h"
 #include "screen_dashboard.h"
+#include "screen_menu.h"
+
 #include "lvgl.h"
 
 static lv_obj_t *s_screens[SCREEN_COUNT] = { NULL };
+static bool s_menu_initialized = false;
 
 void screen_system_init(void)
 {
@@ -27,6 +30,14 @@ void screen_show(ScreenId_t id)
 {
     screen_wait_ready();
     lv_lock();
+
+
+    /* Initialize the global menu overlay exactly once */
+      if (!s_menu_initialized) {
+          screen_menu_init();
+          s_menu_initialized = true;
+      }
+
 
     /* Lazy-initialize screens on first request to save RAM at boot */
     if (s_screens[id] == NULL) {

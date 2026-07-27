@@ -18,8 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-
-#include "FreeRTOS.h" // inlcude freeRTOS
+#include "FreeRTOS.h"
 #include "task.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -28,11 +27,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include "system_info.h"
+#include "sensor.h"
 #include "sdram.h"
 #include "log.h"
 #include "render.h"
+#include "temp.h"
 
-/* Include the screen interfaces */
 
 /* USER CODE END Includes */
 
@@ -54,6 +55,7 @@
 /* Private variables ---------------------------------------------------------*/
 
 
+
 /* Definitions for defaultTask */
 
 /* USER CODE BEGIN PV */
@@ -63,7 +65,6 @@
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-
 
 
 /* USER CODE BEGIN PFP */
@@ -115,6 +116,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+
   /* USER CODE BEGIN 2 */
 
   Log_Init() ;
@@ -122,18 +124,17 @@ int main(void)
 
 
    SDRAM_Init();
-
+   sysinfo_init();
 
    renderer_init();
+   sensor_init();  /*Starts reading I2C in the background */
 
-  	    /* 5. Start the FreeRTOS Scheduler */
+
    vTaskStartScheduler();
 
 
 
   /* USER CODE END 2 */
-
-  /* Init scheduler */
 
 
   /* Infinite loop */
@@ -142,11 +143,11 @@ int main(void)
   {
     /* USER CODE END WHILE */
 
+
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
 }
-
 
 /**
   * @brief System Clock Configuration
@@ -212,8 +213,6 @@ void SystemClock_Config(void)
 
 
 
-
-
 /**
   * @brief GPIO Initialization Function
   * @param None
@@ -237,6 +236,14 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOG_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(LCD_RESET_GPIO_Port, LCD_RESET_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOH, LCD_BACKLIGHT_Pin|GT_RESET_Pin, GPIO_PIN_RESET);
 
 
   /*Configure GPIO pin : LED_Pin */
@@ -245,7 +252,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LED_GPIO_Port, &GPIO_InitStruct);
-
 
 
 
@@ -259,6 +265,13 @@ static void MX_GPIO_Init(void)
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
+/**
+  * @brief  Function implementing the defaultTask thread.
+  * @param  argument: Not used
+  * @retval None
+  */
+/* USER CODE END Header_StartDefaultTask */
+
 
 /**
   * @brief  Period elapsed callback in non blocking mode

@@ -6,9 +6,14 @@
  * it into screen.h API calls.
  */
 
+
+#include "system_info.h"
 #include "render.h"
 #include "screen.h"
+#include "sensor.h"
 #include "tasks_config.h"
+
+#include "log.h"
 #include "FreeRTOS.h"
 #include "task.h"
 #include <math.h>
@@ -17,6 +22,10 @@
 static void renderer_task(void *pvParameters)
 {
 	    (void)pvParameters;
+	    // system info
+	    SystemInfo_t sys;
+
+
 	    /* Boot OS Modules (Order matters: Screen depends on GUI) */
 	     screen_system_init();
 
@@ -33,6 +42,8 @@ static void renderer_task(void *pvParameters)
 
 	    for (;;)
 	    {
+	    	sysinfo_get_snapshot(&sys);
+
 	    	 /* Create a smooth sine wave instead of a sharp sawtooth */
 	    	  time_step += 0.3f; /* Speed of the wave */
 	    	 /* Sinusoidal value oscillating between 1.0 and 5.0 */
@@ -54,7 +65,8 @@ static void renderer_task(void *pvParameters)
 	        screen_push_chart(SCREEN_CHART_CONSUMPTION, (int32_t)(kw * 15));
 	        screen_push_chart(SCREEN_CHART_GRID, (int32_t)(kw * 20));
 
-	        screen_set_weather("Islamabad", 17,"Cloudy");
+	        screen_set_weather("Germany", (int)sys.temp, "Sunny");
+
 
 
 	        vTaskDelay(pdMS_TO_TICKS(100));
@@ -64,6 +76,9 @@ static void renderer_task(void *pvParameters)
 
 void renderer_init(void)
 {
+
+
+
     BaseType_t status = xTaskCreate(
         renderer_task,
         "Renderer",
@@ -72,5 +87,7 @@ void renderer_init(void)
         RENDERER_TASK_PRIORITY,
         NULL
     );
+
+    // -1 means cannot allocate enough memory
     configASSERT(status == pdPASS);
 }
