@@ -41,7 +41,7 @@ extern uint32_t SystemCoreClock;
  */
 #define configTOTAL_HEAP_SIZE       ( (size_t)(128 * 1024) )
 #define configSUPPORT_DYNAMIC_ALLOCATION  1
-#define configSUPPORT_STATIC_ALLOCATION   0
+#define configSUPPORT_STATIC_ALLOCATION   1
 
 /* ── Tasks ──────────────────────────────────────────────────────── */
 #define configMAX_PRIORITIES     56
@@ -76,7 +76,7 @@ extern uint32_t SystemCoreClock;
 /* ── Hooks ──────────────────────────────────────────────────────── */
 #define configUSE_IDLE_HOOK            0
 #define configUSE_TICK_HOOK            0
-#define configUSE_MALLOC_FAILED_HOOK   0   /* void vApplicationMallocFailedHook(void) */
+#define configUSE_MALLOC_FAILED_HOOK   1   /* void vApplicationMallocFailedHook(void) */
 #define configCHECK_FOR_STACK_OVERFLOW 2   /* void vApplicationStackOverflowHook(...) */
 
 /* ── Runtime stats / trace ──────────────────────────────────────── */

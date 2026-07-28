@@ -21,6 +21,7 @@
 #include "FreeRTOS.h"
 #include "task.h"
 
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <string.h>
@@ -33,7 +34,7 @@
 #include "log.h"
 #include "render.h"
 #include "temp.h"
-
+#include "modbus_rtu.h"
 
 /* USER CODE END Includes */
 
@@ -56,7 +57,7 @@
 
 
 
-/* Definitions for defaultTask */
+
 
 /* USER CODE BEGIN PV */
 
@@ -65,7 +66,6 @@
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-
 
 /* USER CODE BEGIN PFP */
 
@@ -77,6 +77,17 @@ void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
 
     taskDISABLE_INTERRUPTS(); for (;;) {}
 }
+
+void vApplicationMallocFailedHook(void)
+{
+    size_t free = xPortGetFreeHeapSize();
+    size_t min  = xPortGetMinimumEverFreeHeapSize();
+
+    Log_Printf(LOG_LEVEL_INFO, "vApplicationStackOverflowHook", "Malloc failed %d %d ",(unsigned)free,(unsigned)min) ;
+
+
+}
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -84,7 +95,15 @@ void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
 
 
 /* USER CODE END 0 */
+void DWT_Init(void)
+{
+    /* Enable trace and debug block */
+    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
 
+    /* Reset and enable cycle counter */
+    DWT->CYCCNT = 0U;
+    DWT->CTRL  |= DWT_CTRL_CYCCNTENA_Msk;
+}
 /**
   * @brief  The application entry point.
   * @retval int
@@ -116,7 +135,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-
+  DWT_Init() ;
   /* USER CODE BEGIN 2 */
 
   Log_Init() ;
@@ -131,18 +150,17 @@ int main(void)
 
 
    vTaskStartScheduler();
-
-
-
   /* USER CODE END 2 */
 
+
+
+  /* USER CODE BEGIN RTOS_MUTEX */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
     /* USER CODE END WHILE */
-
 
     /* USER CODE BEGIN 3 */
   }
@@ -213,6 +231,8 @@ void SystemClock_Config(void)
 
 
 
+
+
 /**
   * @brief GPIO Initialization Function
   * @param None
@@ -245,6 +265,9 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOH, LCD_BACKLIGHT_Pin|GT_RESET_Pin, GPIO_PIN_RESET);
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(MAX485_DIR_GPIO_Port, MAX485_DIR_Pin, GPIO_PIN_RESET);
+
 
   /*Configure GPIO pin : LED_Pin */
   GPIO_InitStruct.Pin = LED_Pin;
@@ -255,22 +278,13 @@ static void MX_GPIO_Init(void)
 
 
 
+
+  HAL_GPIO_Init(MAX485_DIR_GPIO_Port, &GPIO_InitStruct);
+
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
   /* USER CODE END MX_GPIO_Init_2 */
 }
-
-/* USER CODE BEGIN 4 */
-
-/* USER CODE END 4 */
-
-/* USER CODE BEGIN Header_StartDefaultTask */
-/**
-  * @brief  Function implementing the defaultTask thread.
-  * @param  argument: Not used
-  * @retval None
-  */
-/* USER CODE END Header_StartDefaultTask */
 
 
 /**

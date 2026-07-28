@@ -158,6 +158,8 @@ SECTIONS
     __bss_end__ = _ebss;
   } >RAM_D1
 
+
+
   /* User_heap_stack section, used to check that there is enough RAM left */
   ._user_heap_stack :
   {
@@ -168,6 +170,14 @@ SECTIONS
     . = . + _Min_Stack_Size;
     . = ALIGN(8);
   } >RAM_D1
+
+/*FreeRTOS Tasks */ 
+.dtcm_stack (NOLOAD):
+{
+    . = ALIGN(8);
+    *(.dtcm_stack)
+    . = ALIGN(8);
+} >DTCMRAM
 
   /* Remove information from the standard libraries */
   /DISCARD/ :

@@ -19,6 +19,10 @@ typedef struct {
 
     float temp;
 
+    float inverter_ac_voltage_v;
+    float inverter_ac_current_a;
+    float inverter_output_power_w;
+
     /* --- System --- */
     uint32_t uptime_seconds;
 
@@ -32,6 +36,9 @@ void sysinfo_init(void);
 
 // Setting the temperature and storing in the data structure
 void sysinfo_set_board_temp(float temp_c, float humidity_pct) ;
+
+void sysinfo_set_inverter_data(float voltage_v, float current_a, float power_w); ;
+
 
 /* Getter (Called by UI task) */
 void sysinfo_get_snapshot(SystemInfo_t *out_snapshot);

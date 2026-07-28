@@ -67,6 +67,8 @@ void Error_Handler(void);
 #define LCD_BACKLIGHT_GPIO_Port GPIOH
 #define GT_RESET_Pin GPIO_PIN_7
 #define GT_RESET_GPIO_Port GPIOH
+#define MAX485_DIR_Pin GPIO_PIN_8
+#define MAX485_DIR_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 

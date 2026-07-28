@@ -54,7 +54,6 @@
 
 /* USER CODE END 0 */
 
-/* External variables --------------------------------------------------------*/
 
 extern TIM_HandleTypeDef htim7;
 
@@ -161,6 +160,7 @@ void DebugMon_Handler(void)
 /* please refer to the startup file (startup_stm32h7xx.s).                    */
 /******************************************************************************/
 
+
 /**
   * @brief This function handles TIM7 global interrupt.
   */
@@ -174,7 +174,6 @@ void TIM7_IRQHandler(void)
 
   /* USER CODE END TIM7_IRQn 1 */
 }
-
 
 
 /* USER CODE BEGIN 1 */

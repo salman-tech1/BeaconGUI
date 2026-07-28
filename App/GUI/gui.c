@@ -37,6 +37,13 @@ static void handle_event(const GuiEvent_t *evt);
 static void build_initial_ui(void);
 static void gui_touch_visualizer(void);
 
+
+StaticTask_t GuiTCB;
+TaskHandle_t GuiHandle;
+
+
+__attribute__((section(".dtcm_stack")))
+StackType_t GuiTaskStack[GUI_TASK_STACK_WORDS];
 /*
  * gui_init() must be called BEFORE vTaskStartScheduler().
  * It only creates OS primitives; hardware init is deferred to the task context.
@@ -48,10 +55,25 @@ void gui_init(void)
 
     s_event_queue = xQueueCreate(GUI_EVENT_QUEUE_DEPTH, sizeof(GuiEvent_t));
     configASSERT(s_event_queue != NULL);
+    size_t free = xPortGetFreeHeapSize();
+    size_t min  = xPortGetMinimumEverFreeHeapSize();
 
-    BaseType_t r = xTaskCreate(gui_task_run, "GUI", GUI_TASK_STACK_WORDS,
-                               NULL, GUI_TASK_PRIORITY, &s_task_handle);
-    configASSERT(r == pdPASS);
+
+//    BaseType_t r = xTaskCreate(gui_task_run, "GUI", GUI_TASK_STACK_WORDS,
+//                               NULL, GUI_TASK_PRIORITY, &s_task_handle);
+//    configASSERT(r == pdPASS);
+    GuiHandle = xTaskCreateStatic(
+    		gui_task_run,
+            "Gui Task",
+    		GUI_TASK_STACK_WORDS,
+            NULL,
+            GUI_TASK_PRIORITY,
+			GuiTaskStack,
+            &GuiTCB
+        );
+
+    	  configASSERT(GuiHandle != NULL);
+
 }
 
 void gui_wait_ready(void)
@@ -223,6 +245,8 @@ static void touch_read_cb(lv_indev_t *indev, lv_indev_data_t *data)
 {
     (void)indev;
     if (Touch_IsPending()) Touch_Read(&s_touch);
+
+    // Log_Printf(LOG_LEVEL_INFO, "TOUCH","x : %d y : %d ",s_touch.points[0].x,s_touch.points[0].y) ;
 
     if (s_touch.touch_count > 0) {
         data->point.x = s_touch.points[0].x;

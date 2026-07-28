@@ -18,6 +18,13 @@
 #include "task.h"
 #include <math.h>
 
+StaticTask_t RenderTCB;
+TaskHandle_t RenderHandle;
+
+// DTCM is dedicated for FreeRTOS tasks
+__attribute__((section(".dtcm_stack")))
+StackType_t RenderTaskStack[RENDERER_TASK_STACK_SIZE];
+
 
 static void renderer_task(void *pvParameters)
 {
@@ -57,9 +64,13 @@ static void renderer_task(void *pvParameters)
 	         */
 	        screen_set_battery(kw, (kw > 3.0f) ? SCREEN_BATTERY_DISCHARGING : SCREEN_BATTERY_CHARGING);
 
-	        screen_set_production(kw * 2.0f, kwh * 2);
-	        screen_set_consumption(kw * 1.5f, kwh);
-	        screen_set_grid(kw * 1.5f,kwh*3,kwh*2) ;
+	         screen_set_production(kw * 2.0f, kwh * 2);
+	       // screen_set_production(sys.inverter_output_power_w / 1000.0f, 0);
+
+	         // read the system state and write to display screen
+	        screen_set_consumption(sys.inverter_ac_voltage_v , kwh);
+
+	        screen_set_grid(sys.inverter_ac_current_a * 1.5f,kwh*3,kwh*2) ;
 
 	        screen_push_chart(SCREEN_CHART_PRODUCTION, (int32_t)(kw * 10));
 	        screen_push_chart(SCREEN_CHART_CONSUMPTION, (int32_t)(kw * 15));
@@ -77,17 +88,27 @@ static void renderer_task(void *pvParameters)
 void renderer_init(void)
 {
 
-
-
-    BaseType_t status = xTaskCreate(
-        renderer_task,
-        "Renderer",
-        RENDERER_TASK_STACK_SIZE,
+//
+//    BaseType_t status = xTaskCreate(
+//        renderer_task,
+//        "Renderer",
+//        RENDERER_TASK_STACK_SIZE,
+//        NULL,
+//        RENDERER_TASK_PRIORITY,
+//        NULL
+//    );
+//
+	RenderHandle = xTaskCreateStatic(
+    	renderer_task,
+        "render Task",
+		RENDERER_TASK_STACK_SIZE,
         NULL,
         RENDERER_TASK_PRIORITY,
-        NULL
+		RenderTaskStack,
+        &RenderTCB
     );
 
     // -1 means cannot allocate enough memory
-    configASSERT(status == pdPASS);
+	// Assert that the task handle is valid (not NULL)
+	    configASSERT(RenderHandle != NULL);
 }

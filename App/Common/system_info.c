@@ -30,6 +30,16 @@ void sysinfo_set_board_temp(float temp_c, float humidity_pct)
     }
 }
 
+void sysinfo_set_inverter_data(float voltage_v, float current_a, float power_w)
+{
+    if (xSemaphoreTake(s_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+        s_info.inverter_ac_voltage_v = voltage_v;
+        s_info.inverter_ac_current_a = current_a;
+        s_info.inverter_output_power_w = power_w;
+        xSemaphoreGive(s_mutex);
+    }
+}
+
 /*
  * The Snapshot trick:
  * Instead of the UI locking/unlocking 10 times to read 10 different values,
