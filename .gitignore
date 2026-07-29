@@ -1,14 +1,24 @@
-Debug/
-Release/
-*.o
-*.elf
-*.bin
-*.hex
-*.map
-*.list
-*.su
+# =====================================================
+# STM32CubeIDE
+# =====================================================
+
+stm32/Debug/
+stm32/Release/
+
+stm32/*.o
+stm32/*.elf
+stm32/*.bin
+stm32/*.hex
+stm32/*.map
+stm32/*.list
+stm32/*.su
 
 # CubeIDE / Eclipse workspace junk
+stm32/.metadata/
+stm32/.recommenders/
+stm32/.settings/com.st.stm32cube.ide.mcu.sfrview.prefs
+stm32/.settings/language.settings.xml
+
 .metadata/
 .recommenders/
 
@@ -17,4 +27,3 @@ Release/
 Thumbs.db
 
 
-.settings/
