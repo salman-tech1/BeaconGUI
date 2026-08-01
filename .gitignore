@@ -27,3 +27,11 @@ stm32/.settings/language.settings.xml
 Thumbs.db
 
 
+
+# esp32
+
+esp32/.vscode
+esp32/GUI_Link/.devcontainer
+esp32/GUI_Link/.vscode
+esp32/GUI_Link/build
+

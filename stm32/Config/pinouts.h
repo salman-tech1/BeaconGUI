@@ -25,6 +25,10 @@
 #define MODBUS_DIR_GPIO_PIN           GPIO_PIN_8
 
 
+// USART2 Pinouts for Communcation between esp32
+#define COM_USART2_GPIO_PORT      GPIOD
+#define COM_USART2_TX_PIN         GPIO_PIN_5
+#define COM_USART2_RX_PIN         GPIO_PIN_6
 
 
 #endif /* PINOUTS_H_ */

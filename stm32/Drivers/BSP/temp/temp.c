@@ -261,6 +261,7 @@ void Temp_Debug_PingTest(void)
     if (SHT31_SendCommand(SHT31_CMD_READ_STATUS) == TEMP_OK &&
         SHT31_ReadRaw(buf, 3U) == TEMP_OK &&
         SHT31_CheckCRC(buf, buf[2])) {
+    	__unused
         uint16_t status_reg = ((uint16_t)buf[0] << 8) | buf[1];
         // printf("[temp] SHT31 status = 0x%04X\r\n", status_reg);
     } else {

@@ -22,4 +22,14 @@
 #define SENSOR_TASK_PRIORITY    (tskIDLE_PRIORITY + 1U)  /* DROPPED: Lowest priority */
 
 
+// Link Tasks for communication between two MCU
+#define LINK_RX_QUEUE_DEPTH    16U
+#define LINK_RX_TASK_STACK     768U
+#define LINK_RX_TASK_PRIORITY  5U   /* higher — never miss incoming bytes */
+
+#define LINK_APP_TASK_STACK    768U
+#define LINK_APP_TASK_PRIORITY 4U   /* lower — process when scheduler allows */
+
+
+
 #endif /* TASKS_CONFIG_H_ */

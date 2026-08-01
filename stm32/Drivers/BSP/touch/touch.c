@@ -103,6 +103,7 @@ static void GT911_GPIO_Init(void)
     HAL_GPIO_Init(GT911_INT_GPIO_PORT, &GPIO_InitStruct);
 }
 
+__unused
 static void GT911_INT_AsOutput(uint8_t level)
 {
     GPIO_InitTypeDef GPIO_InitStruct = {0};

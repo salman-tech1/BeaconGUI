@@ -54,6 +54,8 @@
 
 /* USER CODE END 0 */
 
+/* External variables --------------------------------------------------------*/
+
 
 extern TIM_HandleTypeDef htim7;
 
@@ -153,12 +155,7 @@ void DebugMon_Handler(void)
   /* USER CODE END DebugMonitor_IRQn 1 */
 }
 
-/******************************************************************************/
-/* STM32H7xx Peripheral Interrupt Handlers                                    */
-/* Add here the Interrupt Handlers for the used peripherals.                  */
-/* For the available peripheral interrupt handler names,                      */
-/* please refer to the startup file (startup_stm32h7xx.s).                    */
-/******************************************************************************/
+
 
 
 /**
@@ -174,6 +171,7 @@ void TIM7_IRQHandler(void)
 
   /* USER CODE END TIM7_IRQn 1 */
 }
+
 
 
 /* USER CODE BEGIN 1 */

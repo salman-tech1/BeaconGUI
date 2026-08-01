@@ -21,7 +21,6 @@
 #include "FreeRTOS.h"
 #include "task.h"
 
-
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <string.h>
@@ -36,7 +35,7 @@
 #include "temp.h"
 #include "modbus_rtu.h"
 
-/* USER CODE END Includes */
+#include "link.h"
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
@@ -59,6 +58,8 @@
 
 
 
+/* Definitions for defaultTask */
+
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -66,6 +67,8 @@
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+
+
 
 /* USER CODE BEGIN PFP */
 
@@ -88,6 +91,83 @@ void vApplicationMallocFailedHook(void)
 
 }
 
+
+#define TEST_TX_TASK_STACK     512U
+#define TEST_TX_TASK_PRIORITY  3U   /* below both link_rx_task (5) and
+                                       link_app_task (4) — this is just
+                                       a test generator, not real traffic */
+
+typedef struct __attribute__((packed)) {
+    uint8_t  connected;
+    int8_t   rssi;
+    char     ip_str[16];
+} test_wifi_status_payload_t;
+
+typedef struct __attribute__((packed)) {
+    uint32_t unix_timestamp;
+    uint8_t  synced;
+} test_time_payload_t;
+
+
+static void test_tx_task(void *pvParameters)
+{
+    (void)pvParameters;
+    uint16_t seq     = 0U;
+    uint32_t counter = 0U;
+    frame_Stats_t fstats;   /* <-- add */
+
+    for (;;) {
+        frame_Status_t st;
+
+        if ((counter % 2U) == 0U) {
+                    test_wifi_status_payload_t status = {
+                        .connected = 1U,
+                        .rssi      = -42,
+                    };
+                    strncpy(status.ip_str, "192.168.1.42", sizeof(status.ip_str) - 1U);
+
+                    st = link_Send(CMD_WIFI_STATUS, seq, 0U,
+                                    (uint8_t *)&status, sizeof(status));
+                    Log_Printf(LOG_LEVEL_INFO,"LINK TEST","TX CMD_WIFI_STATUS seq=%u status=%d\r\n",
+                           (unsigned)seq, (int)st);
+                } else {
+                    test_time_payload_t t = {
+                        .unix_timestamp = HAL_GetTick() / 1000U,
+                        .synced         = 1U,
+                    };
+
+                    st = link_Send(CMD_TIME_SYNC, seq, 0U,
+                                    (uint8_t *)&t, sizeof(t));
+
+
+                    Log_Printf(LOG_LEVEL_INFO,"LINK TEST","TX CMD_TIME_SYNC seq=%u status=%d\r\n",
+                           (unsigned)seq, (int)st);
+                }
+        seq++;
+        counter++;
+
+        frame_GetStats(&fstats);   /* <-- add */
+        Log_Printf(LOG_LEVEL_INFO, "LINK TEST",
+                   "frame stats: rx_ok=%lu rx_crc_err=%lu\r\n",
+                   (unsigned long)fstats.rx_packets_ok,
+                   (unsigned long)fstats.rx_crc_errors);   /* <-- add */
+
+        Log_Printf(LOG_LEVEL_INFO,"LINK TEST","stats: rx_queue_full=%lu rx_uart_errors=%lu\r\n",
+                     (unsigned long)link_stats.rx_queue_full,
+                     (unsigned long)link_stats.rx_uart_errors);
+
+        vTaskDelay(pdMS_TO_TICKS(2000));
+    }
+}
+
+void LinkFrameTest_Init(void)
+{
+    link_Init();   /* brings up Com + Frame + link_rx_task + link_app_task */
+
+    xTaskCreate(test_tx_task, "test_tx", TEST_TX_TASK_STACK, NULL,
+                TEST_TX_TASK_PRIORITY, NULL);
+}
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -95,15 +175,7 @@ void vApplicationMallocFailedHook(void)
 
 
 /* USER CODE END 0 */
-void DWT_Init(void)
-{
-    /* Enable trace and debug block */
-    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
 
-    /* Reset and enable cycle counter */
-    DWT->CYCCNT = 0U;
-    DWT->CTRL  |= DWT_CTRL_CYCCNTENA_Msk;
-}
 /**
   * @brief  The application entry point.
   * @retval int
@@ -135,26 +207,33 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  DWT_Init() ;
+
+
   /* USER CODE BEGIN 2 */
 
   Log_Init() ;
   Log_Printf(LOG_LEVEL_INFO, "MAIN", "Application Started") ;
 
 
-   SDRAM_Init();
-   sysinfo_init();
+   //SDRAM_Init();
+  // sysinfo_init();
 
-   renderer_init();
-   sensor_init();  /*Starts reading I2C in the background */
+  // renderer_init();
+  // sensor_init();  /*Starts reading I2C in the background */
 
 
-   vTaskStartScheduler();
+  //
   /* USER CODE END 2 */
 
-
+  /* Init scheduler */
+  LinkFrameTest_Init();
+  vTaskStartScheduler();
 
   /* USER CODE BEGIN RTOS_MUTEX */
+
+
+
+  /* We should never get here as control is now taken by the scheduler */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -231,8 +310,6 @@ void SystemClock_Config(void)
 
 
 
-
-
 /**
   * @brief GPIO Initialization Function
   * @param None
@@ -269,6 +346,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(MAX485_DIR_GPIO_Port, MAX485_DIR_Pin, GPIO_PIN_RESET);
 
 
+
   /*Configure GPIO pin : LED_Pin */
   GPIO_InitStruct.Pin = LED_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -277,14 +355,15 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(LED_GPIO_Port, &GPIO_InitStruct);
 
 
-
-
-  HAL_GPIO_Init(MAX485_DIR_GPIO_Port, &GPIO_InitStruct);
-
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
   /* USER CODE END MX_GPIO_Init_2 */
 }
+
+/* USER CODE BEGIN 4 */
+
+/* USER CODE END 4 */
+
 
 
 /**
