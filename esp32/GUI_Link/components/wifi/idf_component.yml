@@ -1,0 +1,8 @@
+## Both mDNS and cJSON were removed from core ESP-IDF as of the v6.0
+## release and must now be pulled in via the Component Manager. Declaring
+## them here is enough — you do NOT also list them under REQUIRES in
+## CMakeLists.txt (see Espressif's v6.0 migration guide, "Protocols").
+dependencies:
+  espressif/mdns: "^1.8"
+  espressif/cjson: "^1.7.19"
+ 
