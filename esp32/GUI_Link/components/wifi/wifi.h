@@ -43,7 +43,6 @@
 
 /*
  * wifi_init
- *
  * Initialises the WiFi stack, loads credentials from NVS (or uses defaults),
  * starts AP+STA mode, starts mDNS (http://beacon.local), and waits up to
  * WIFI_CONNECT_TIMEOUT_MS for an IP on the station interface.

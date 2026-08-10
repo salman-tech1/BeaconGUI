@@ -14,6 +14,7 @@
 #include "link.h"
 #include "frame.h"
 #include "system_info.h"
+#include "sntp.h"
 
 static const char *TAG = "Board_test";
 
@@ -31,7 +32,7 @@ void app_main(void)
     ESP_LOGI(TAG, "Initializing system info...");
     sysinfo_init();
 
-  
+    
     ESP_LOGI(TAG, "Initializing UART link...");
     link_Init();
 
@@ -57,6 +58,9 @@ void app_main(void)
     /* Start HTTP server for network provisioning */
     http_server_start();
 
-    /* app_main's job is done — delete this task to free its stack */
+    /* Start SNTP client — task waits for WiFi internally */
+    ESP_LOGI(TAG, "Starting SNTP client...");
+    sntp_init_();
+
     vTaskDelete(NULL);
 }

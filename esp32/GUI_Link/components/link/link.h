@@ -48,6 +48,8 @@ void link_SendWifiStatus(uint16_t seq);
  */
 void link_SendTimeSync(uint16_t seq);
 
+
+
 #ifdef __cplusplus
 }
 #endif

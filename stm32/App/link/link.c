@@ -37,14 +37,21 @@ typedef struct __attribute__((packed)) {
 
 link_Stats_t  link_stats;
 
+/* Stored time info from ESP32 */
+static link_TimeInfo_t  s_time_info;
+static SemaphoreHandle_t s_time_mutex;
+
 static QueueHandle_t     s_rx_queue;
 static SemaphoreHandle_t s_send_mutex;
 static volatile bool     s_need_recover   = false;
 
+/* Sequence counter for outgoing requests */
+static uint16_t s_req_seq = 0;
+
 /*
    Com event callback — ISR CONTEXT.
    Minimal by design: just set a flag. The rx task polls every 10ms.
-  */
+*/
 static void com_event_from_isr(Com_Event_t event)
 {
     if (event == COM_EVENT_ERROR)
@@ -53,7 +60,6 @@ static void com_event_from_isr(Com_Event_t event)
     }
     /* No notification needed — link_rx_task polls every 10 ms */
 }
-
 
 static void on_packet_received(const frame_Packet_t *packet)
 {
@@ -66,7 +72,7 @@ static void on_packet_received(const frame_Packet_t *packet)
 /*
    link_rx_task — priority 5.
    Polls frame_Poll() every 10ms; on error, recovers the transport.
-   */
+*/
 static void link_rx_task(void *pvParameters)
 {
     (void)pvParameters;
@@ -89,7 +95,6 @@ static void link_rx_task(void *pvParameters)
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
-
 
 static void link_app_task(void *pvParameters)
 {
@@ -120,7 +125,40 @@ static void link_app_task(void *pvParameters)
                 break;
 
             case CMD_TIME_SYNC:
-                /* TODO: Handle time sync from ESP32 */
+                if (packet.payload_length >= sizeof(link_time_payload_t))
+                {
+                    link_time_payload_t time_payload;
+                    memcpy(&time_payload, packet.payload, sizeof(time_payload));
+
+                    /* Store the time info (thread-safe) */
+                    if (s_time_mutex != NULL)
+                    {
+                        if (xSemaphoreTake(s_time_mutex, pdMS_TO_TICKS(10)) == pdTRUE)
+                        {
+                            s_time_info.unix_timestamp = time_payload.unix_timestamp;
+                            s_time_info.synced         = (time_payload.synced != 0);
+                            s_time_info.valid          = true;
+                            xSemaphoreGive(s_time_mutex);
+                        }
+                    }
+
+                    Log_Printf(LOG_LEVEL_INFO, "LINK",
+                               "Time sync: ts=%lu synced=%d",
+                               (unsigned long)time_payload.unix_timestamp,
+                               time_payload.synced);
+
+
+                }
+                break;
+
+            case CMD_TIME_REQ:
+                /* ESP32 should never send this to us, but handle gracefully */
+                Log_Printf(LOG_LEVEL_WARN, "LINK", "Unexpected CMD_TIME_REQ from ESP32");
+                break;
+
+            case CMD_WIFI_STATUS_REQ:
+                /* ESP32 should never send this to us, but handle gracefully */
+                Log_Printf(LOG_LEVEL_WARN, "LINK", "Unexpected CMD_WIFI_STATUS_REQ from ESP32");
                 break;
 
             case CMD_SLOT_INFO_REQ:
@@ -146,8 +184,6 @@ static void link_app_task(void *pvParameters)
         }
     }
 }
-
-
 
 frame_Status_t link_Send(uint8_t cmd, uint16_t seq, uint8_t flags,
                          const uint8_t *payload, uint16_t payload_length)
@@ -179,22 +215,67 @@ frame_Status_t link_Send(uint8_t cmd, uint16_t seq, uint8_t flags,
     return status;
 }
 
+void link_RequestWifiStatus(uint16_t seq)
+{
+    link_Send(CMD_WIFI_STATUS_REQ, seq, 0, NULL, 0);
+    Log_Printf(LOG_LEVEL_INFO, "LINK", "Sent WIFI_STATUS_REQ seq=%d", seq);
+}
+
+void link_RequestTime(uint16_t seq)
+{
+    link_Send(CMD_TIME_REQ, seq, 0, NULL, 0);
+    Log_Printf(LOG_LEVEL_INFO, "LINK", "Sent TIME_REQ seq=%d", seq);
+}
+
+bool link_GetTimeInfo(link_TimeInfo_t *out_info)
+{
+    if (out_info == NULL)
+    {
+        return false;
+    }
+
+    bool valid = false;
+
+    if (s_time_mutex != NULL)
+    {
+        if (xSemaphoreTake(s_time_mutex, pdMS_TO_TICKS(10)) == pdTRUE)
+        {
+            *out_info = s_time_info;
+            valid = s_time_info.valid;
+            xSemaphoreGive(s_time_mutex);
+        }
+    }
+    else
+    {
+        /* Fallback if mutex not initialized (shouldn't happen) */
+        *out_info = s_time_info;
+        valid = s_time_info.valid;
+    }
+
+    return valid;
+}
+
 void link_Init(void)
 {
-    /*  queue/mutex before anything that could use them */
+    /* 1. queue/mutex before anything that could use them */
     s_rx_queue   = xQueueCreate(LINK_RX_QUEUE_DEPTH, sizeof(frame_Packet_t));
     s_send_mutex = xSemaphoreCreateMutex();
+    s_time_mutex = xSemaphoreCreateMutex();
     memset(&link_stats, 0, sizeof(link_stats));
 
-    /*  bring up the layers below, lowest first */
+    /* Initialize time info as invalid */
+    memset(&s_time_info, 0, sizeof(s_time_info));
+    s_time_info.valid = false;
+
+    /* 2. bring up the layers below, lowest first */
     Com_Init();
     frame_Init();
 
-    /* wire the layers together via callback registration */
+    /* 3. wire the layers together via callback registration */
     Com_RegisterEventCallback(com_event_from_isr);
     frame_RegisterPacketCallback(on_packet_received);
 
-    /* tasks last — they start running immediately */
+    /* 4. tasks last — they start running immediately */
     xTaskCreate(link_rx_task, "link_rx", LINK_RX_TASK_STACK, NULL,
                 LINK_RX_TASK_PRIORITY, NULL);
     xTaskCreate(link_app_task, "link_app", LINK_APP_TASK_STACK, NULL,

@@ -1,12 +1,5 @@
 /*
- * frame.h  (ESP32 side)
- *
- * Turns Com's raw bytes into framed, CRC-verified packets, and turns
- * outgoing packets back into raw bytes for Com. Everything in this
- * file MUST stay byte-for-byte identical to the STM32 side's frame.h
- * — sync bytes, sizes, flags, and command IDs are the shared wire
- * contract between the two MCUs.
- *
+ * frame.h  
  *  Author: Muhmmad Salman
  */
 

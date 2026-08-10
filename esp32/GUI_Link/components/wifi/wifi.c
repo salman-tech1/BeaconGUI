@@ -24,16 +24,10 @@
 
 #include "system_info.h" // system info 
 
-
-/* add a static sequence counter at the top of wifi_manager.c */
-
 static const char *TAG = "WIFI";
 
 
 
-/* 
-Wifi connected and fail Bits for Event group 
- */
 #define WIFI_CONNECTED_BIT  BIT0
 #define WIFI_FAIL_BIT       BIT1
 
@@ -263,11 +257,7 @@ static esp_err_t load_credentials(char *ssid, size_t ssid_sz,
 
 /*
  * start_mdns_service
- *
  * Makes the device reachable as http://beacon.local instead of an IP.
- * The mDNS component listens on the preconfigured STA/AP/ETH netifs by
- * default, so this covers both "phone joined the ESP's own AP" and
- * "ESP joined the home router" cases with a single call.
  */
 static esp_err_t start_mdns_service(void)
 {

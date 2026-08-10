@@ -89,12 +89,10 @@ static void link_app_task(void *pvParameters)
             switch (packet.cmd)
             {
             case CMD_HEARTBEAT:
-            
                 ESP_LOGI(TAG, "<< HEARTBEAT (loopback) seq=%d", packet.seq);
                 break;
 
             case CMD_HEARTBEAT_ACK:
-            // when the Stm32 send ACK this Executes 
                 ESP_LOGI(TAG, "<< HEARTBEAT_ACK seq=%d", packet.seq);
                 break;
 
@@ -104,12 +102,17 @@ static void link_app_task(void *pvParameters)
                 break;
 
             case CMD_WIFI_STATUS_REQ:
-            // When stm32 requests wifi status 
                 link_SendWifiStatus(packet.seq);
                 break;
 
             case CMD_TIME_REQ:
-                /* TODO: link_SendTimeSync(packet.seq); */
+                /* STM32 asking for current time — read from system_info */
+                link_SendTimeSync(packet.seq);
+                break;
+
+            case CMD_TIME_SYNC:
+                ESP_LOGI(TAG, "<< TIME_SYNC seq=%d len=%d",
+                         packet.seq, packet.payload_length);
                 break;
 
             case CMD_SLOT_INFO_RESP:
@@ -179,10 +182,7 @@ void link_SendWifiStatus(uint16_t seq)
 
     payload.connected = sys.wifi.wifi_connected ? 1U : 0U;
     payload.rssi      = sys.wifi.wifi_rssi;
-
-    // copy the ip into payload.ip
     strncpy(payload.ip_str, sys.wifi.wifi_ip, sizeof(payload.ip_str) - 1U);
-
     payload.ip_str[sizeof(payload.ip_str) - 1U] = '\0';
 
     frame_Status_t st = link_Send(CMD_WIFI_STATUS, seq, FRAME_FLAG_EVENT,
@@ -192,14 +192,23 @@ void link_SendWifiStatus(uint16_t seq)
              payload.connected, payload.rssi, payload.ip_str, st);
 }
 
-/* void link_SendTimeSync(uint16_t seq) */
-/* { */
-/*     link_time_payload_t payload; */
-/*     payload.unix_timestamp = sntp_client_get_timestamp(); */
-/*     payload.synced         = sntp_client_is_synced() ? 1U : 0U; */
-/*     link_Send(CMD_TIME_SYNC, seq, FRAME_FLAG_RESPONSE, */
-/*               (const uint8_t *)&payload, sizeof(payload)); */
-/* } */
+void link_SendTimeSync(uint16_t seq)
+{
+    SystemInfo_t sys;
+    sysinfo_get_snapshot(&sys);
+
+    link_time_payload_t payload;
+    memset(&payload, 0, sizeof(payload));
+
+    payload.unix_timestamp = sys.time.unix_timestamp;
+    payload.synced         = sys.time.synced ? 1U : 0U;
+
+    frame_Status_t st = link_Send(CMD_TIME_SYNC, seq, FRAME_FLAG_EVENT,
+                                   (const uint8_t *)&payload, sizeof(payload));
+
+    ESP_LOGI(TAG, "Time sync sent: ts=%lu synced=%d st=%d",
+             (unsigned long)payload.unix_timestamp, payload.synced, st);
+}
 
 void link_Init(void)
 {

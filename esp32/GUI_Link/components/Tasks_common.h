@@ -12,7 +12,13 @@
 #define LINK_RX_TASK_PRIORITY   5U
 #define LINK_APP_TASK_PRIORITY  4U
 
+// System info Task 
 #define SYSTEM_INFO_TASK_STACK 4096U
 #define SYSTEM_INFO_TASK_PRIORITY 6
+
+// SNTP Task 
+#define SNTP_TASK_STACK  4096
+#define SNTP_TASK_PRIORITY 4 
+
 
 #endif 
