@@ -147,7 +147,7 @@
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="App/render"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="App/screen"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Config"/>
-						<entry excluding="tests/comTest.c|Src/comTest.c|tests/test_modbus_read.c|Src/test_modbus_read.c|tests/LCD_TEST.c|Src/LCD_TEST.c|tests/qspi_test.c|Src/qspi_test.c" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Core"/>
+						<entry excluding="tests/LinkTest.c|Src/LinkTest.c|tests/comTest.c|Src/comTest.c|tests/test_modbus_read.c|Src/test_modbus_read.c|tests/LCD_TEST.c|Src/LCD_TEST.c|tests/qspi_test.c|Src/qspi_test.c" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Core"/>
 						<entry excluding="BSP" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Drivers"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Drivers/BSP"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Middlewares"/>
@@ -294,7 +294,7 @@
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="App/render"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="App/screen"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Config"/>
-						<entry excluding="tests/comTest.c|Src/comTest.c|tests/test_modbus_read.c|Src/test_modbus_read.c|tests/LCD_TEST.c|Src/LCD_TEST.c|tests/qspi_test.c|Src/qspi_test.c" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Core"/>
+						<entry excluding="tests/LinkTest.c|Src/LinkTest.c|tests/comTest.c|Src/comTest.c|tests/test_modbus_read.c|Src/test_modbus_read.c|tests/LCD_TEST.c|Src/LCD_TEST.c|tests/qspi_test.c|Src/qspi_test.c" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Core"/>
 						<entry excluding="BSP" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Drivers"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Drivers/BSP"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Middlewares"/>

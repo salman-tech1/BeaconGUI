@@ -18,31 +18,18 @@
 #include "esp_mac.h"
 
 #include "nvs_flash.h" // this is library to write into the NVS partitions 
-#include "nvs.h"  // 
-#include "mdns.h"  // http://beacon.local instead of an IP
+#include "nvs.h"      // 
+#include "mdns.h"    // http://beacon.local instead of an IP
 #include "wifi.h"
 
+#include "system_info.h" // system info 
 
 
 /* add a static sequence counter at the top of wifi_manager.c */
 
 static const char *TAG = "WIFI";
 
-#define WIFI_AP_SSID "BEACONGUI_WIFI" 
-#define WIFI_AP_PASS "11223344"
-#define WIFI_AP_MAX_CONNECTIONS 4 
-#define WIFI_AP_BEACON_INTERVAL 100      // Ap beacon : 100 Milliseconds  :
-#define WIFI_AP_IP "192.168.0.2"         // Ap default IP
-#define WIFI_AP_GATEWAY "192.168.0.2"    // AP default gateway
-#define WIFI_AP_NETMASK "255.255.255.0"  // Ap NetMask
-#define WIFI_AP_BANDWIDTH WIFI_BW20   // 20 Mhz Wifi Bandwidth
-#define WIFI_WIFI_STA_POWER_SAVE WIFI_PS_NONE // High power Always ON
-#define WIFI_AP_CHANNEL 1                   // select channel 1    : 22Mhz separation
-#define WIFI_AP_SSID_HIDDEN 0            // zero make it visible we can see the ssid
 
-#define NVS_NAMESPACE   "wifi_cfg"
-#define NVS_KEY_SSID    "ssid"
-#define NVS_KEY_PASS    "pass"
 
 /* 
 Wifi connected and fail Bits for Event group 
@@ -59,6 +46,9 @@ static volatile int       s_retry_count      = 0;
 static char               s_ip_str[16]       = "0.0.0.0";
 static esp_netif_t       *s_netif_sta        = NULL;
 static esp_netif_t       *s_netif_ap        = NULL ; 
+
+
+static wifi_info_t  wif_info  ; 
 
 
 // wifi event handler 
@@ -97,9 +87,20 @@ static void wifi_event_handler(void *arg, esp_event_base_t base,
         case WIFI_EVENT_STA_DISCONNECTED:
         {
             wifi_event_sta_disconnected_t *e = event_data;
-           if (s_connected)
-{
+
+if (s_connected)
+{   
     s_connected = false;
+
+    memset(&wif_info, 0, sizeof(wif_info));
+    wif_info.wifi_rssi      = 0;
+    wif_info.wifi_connected = false;
+
+     // tell system_info WiFi dropped — publisher_task's change-detection
+    // relies on this to notice a disconnect and push CMD_WIFI_STATUS.
+
+    set_wifi_info(&wif_info);
+
     if (s_retry_count < WIFI_MAX_RETRY)
     {
         s_retry_count++;
@@ -124,7 +125,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t base,
         case WIFI_EVENT_AP_STACONNECTED:
         {
             wifi_event_ap_staconnected_t *e = event_data;
-            ESP_LOGI(TAG, "AP station connected — MAC: %02x:%02x:%02x:%02x:%02x:%02x",
+            ESP_LOGI(TAG, "AP station connected — MAC: " MACSTR,
                      MAC2STR(e->mac));
                      
         }
@@ -133,7 +134,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t base,
         case WIFI_EVENT_AP_STADISCONNECTED:
         {
             wifi_event_ap_stadisconnected_t *e = event_data;
-            ESP_LOGI(TAG, "AP station disconnected — MAC: %02x:%02x:%02x:%02x:%02x:%02x",
+           ESP_LOGI(TAG, "AP station disconnected — MAC: " MACSTR,
                      MAC2STR(e->mac));
         }
         break;
@@ -149,14 +150,35 @@ static void wifi_event_handler(void *arg, esp_event_base_t base,
         case IP_EVENT_STA_GOT_IP:
         {
             ip_event_got_ip_t *e = event_data;
+            wifi_config_t wifi_cfg = {0};
+            wifi_ap_record_t ap_info;
+    
             snprintf(s_ip_str, sizeof(s_ip_str), IPSTR,
                      IP2STR(&e->ip_info.ip));
-
+            
             s_connected   = true;
             s_retry_count = 0;
+  
+        
+  memset(&wif_info, 0, sizeof(wif_info));
 
-            ESP_LOGI(TAG, "STA Got IP: %s", s_ip_str);
-            xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
+if (esp_wifi_get_config(WIFI_IF_STA, &wifi_cfg) == ESP_OK)
+{
+    strlcpy(wif_info.wifi_ssid,     (char *)wifi_cfg.sta.ssid,     sizeof(wif_info.wifi_ssid));
+    strlcpy(wif_info.wifi_password,  (char *)wifi_cfg.sta.password,  sizeof(wif_info.wifi_password));
+}
+
+strlcpy(wif_info.wifi_ip, s_ip_str, sizeof(wif_info.wifi_ip));
+    if (esp_wifi_sta_get_ap_info(&ap_info) == ESP_OK)
+
+    wif_info.wifi_rssi =  ap_info.rssi; 
+    wif_info.wifi_connected = s_connected ; 
+    
+    // set the info to send 
+    set_wifi_info(&wif_info) ; 
+
+     ESP_LOGI(TAG, "STA SSID : %s PASSWORD %s Got IP: %s", wifi_cfg.sta.ssid ,wifi_cfg.sta.password,s_ip_str);
+    xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
         }
         break;
 
@@ -190,13 +212,23 @@ static esp_err_t load_credentials(char *ssid, size_t ssid_sz,
 
     /* Open the NVS namespace in read-only mode.
      * NVS_READONLY means we cannot accidentally write to it here. */
-    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READONLY, &nvs_handle);
+    
+    /*
+     Namespace: "wif_cfg"
+│  ├─ "version" = 1
+│  └─ "size" = 1024
+    */
+     esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READONLY, &nvs_handle);
 
     if (err == ESP_OK)
     {
         /* nvs_get_str fills the buffer and sets ssid_sz to actual length.
          * If the key does not exist, err is ESP_ERR_NVS_NOT_FOUND. */
         size_t n = ssid_sz;
+        /*
+        use the key to get the entry "ssid"
+
+        */
         if (nvs_get_str(nvs_handle, NVS_KEY_SSID, ssid, &n) != ESP_OK)
         {
             strlcpy(ssid, WIFI_DEFAULT_SSID, ssid_sz);
@@ -239,14 +271,18 @@ static esp_err_t load_credentials(char *ssid, size_t ssid_sz,
  */
 static esp_err_t start_mdns_service(void)
 {
+    // initialize mdns 
     esp_err_t err = mdns_init();
     if (err != ESP_OK)
     {
         ESP_LOGE(TAG, "mdns_init failed: 0x%x", err);
         return err;
     }
+    
 
+    // |Set device hostname → `name.local`|
     ESP_ERROR_CHECK(mdns_hostname_set(WIFI_MDNS_HOSTNAME));
+   // |Set friendly display name|
     ESP_ERROR_CHECK(mdns_instance_name_set(WIFI_MDNS_INSTANCE_NAME));
 
     /* Advertise the on-board webserver (port 80) so it also shows up in
@@ -258,22 +294,27 @@ static esp_err_t start_mdns_service(void)
     return ESP_OK;
 }
 
-/*
-+ Create Event group for WIFI 
-+ init netif (network interface )
-+ Create Event Loop the ESP-IDF internal
-+ Create Default configuration 
-+ Initialize the wifi driver with default configuration 
-+ register handlers 
-+ 
-*/
 
+/*
+What the wifi_init do in order 
++ Create Event group for WIFI (For wifi connected disconnected Bits setting )
++ Create a mutex So that wifi connect and scan do not interfere each other 
++ init netif (network interface ) ( network interface so that the high level is connceted with the lower layer lwip )
++ Create Event Loop the ESP-IDF internal  (Create Event loops so that the wifi connect and IP assigned get called )
++ Create Default netif configuration for Sta as well AP 
++ Initialize the wifi driver with default configuration 
++ register handlers For wifi Connected , ip assigned  or so 
++ STA wifi configuration
++ AP configuration for WIFI 
+*/
 
 // nvs flash should be initilize before calling this function 
 esp_err_t wifi_init(void)
 {
     /* Create the event group — must happen before registering handlers
      * because the handlers call xEventGroupSetBits */
+    memset(&wif_info, 0, sizeof(wif_info));
+
     s_wifi_event_group = xEventGroupCreate();
     if (s_wifi_event_group == NULL)
     {
@@ -303,6 +344,7 @@ esp_err_t wifi_init(void)
     /* Create the default WiFi station and ap netif (network interface).
      * This binds the WiFi driver to the lwIP stack. */
     s_netif_sta = esp_netif_create_default_wifi_sta();
+    
     if (s_netif_sta == NULL)
     {
         ESP_LOGE(TAG, "Failed to create STA netif");
@@ -315,6 +357,7 @@ esp_err_t wifi_init(void)
         ESP_LOGE(TAG, "Failed to create AP netif");
         return ESP_ERR_NO_MEM;
     }
+
 
     /* Initialise the WiFi driver with default config.
      * WIFI_INIT_CONFIG_DEFAULT() sets up internal buffers and tasks. */
@@ -352,6 +395,9 @@ esp_err_t wifi_init(void)
     /* Load SSID and password from NVS (or fall back to defaults) */
     char ssid[64] = {0};
     char pass[64] = {0};
+
+    // get password and ssid if stored in nvs keys 
+    // other wise load the default password 
     load_credentials(ssid, sizeof(ssid), pass, sizeof(pass));
 
     /* Build the WiFi station configuration struct */
@@ -371,8 +417,8 @@ esp_err_t wifi_init(void)
     wifi_sta_cfg.sta.pmf_cfg.capable  = true;
     wifi_sta_cfg.sta.pmf_cfg.required = false;
     wifi_sta_cfg.sta.sae_pwe_h2e = WPA3_SAE_PWE_BOTH ;  /* Support WPA3 if available */
-    //    access point configuration 
-        
+
+    //    access point configuration  
     wifi_config_t wifi_ap_config = {
         .ap = {
             .ssid = WIFI_AP_SSID,
@@ -387,11 +433,12 @@ esp_err_t wifi_init(void)
         },
     };
 
+    ////////------------------------------------////////////////
      /* ---- Configure AP static IP ---- */
-esp_netif_ip_info_t ip;
+    esp_netif_ip_info_t ip;
 
-    // must stop it before setting static IP)
-    // This s and c at end points dhcp server and dhcp client
+    // stop the dhcp server because it's job is to assign IP to 
+    // it's connected devices 
     if (esp_netif_dhcps_stop(s_netif_ap) != ESP_OK)
     {
         ESP_LOGE(TAG, "Failed to stop dhcp client");
@@ -410,6 +457,7 @@ esp_netif_ip_info_t ip;
         ESP_LOGE(TAG, "Failed to set ip info");
         return WIFI_ERR_FAILED;
     }
+
     // start the DHCP to connect the mobile device
     //  This will assign IP to the clients
     if (esp_netif_dhcps_start(s_netif_ap) != ESP_OK)
@@ -417,6 +465,8 @@ esp_netif_ip_info_t ip;
         ESP_LOGE(TAG, "Failed to start dhcp server ");
         return WIFI_ERR_FAILED;
     }
+////////------------------------------------////////////////
+
 
 
     // we set the mode to access point + STA 
@@ -451,7 +501,7 @@ esp_netif_ip_info_t ip;
 
     if (bits & WIFI_CONNECTED_BIT)
     {
-  ESP_LOGI(TAG, "STA Connected. IP=%s", s_ip_str);
+          ESP_LOGI(TAG, "STA Connected. IP=%s", s_ip_str);
           return ESP_OK;
     }
     else if (bits & WIFI_FAIL_BIT)
@@ -543,6 +593,25 @@ esp_err_t wifi_save_creds(const char *ssid, const char *pass)
     return err;
 }
 
+esp_err_t wifi_clear_creds(void)
+{
+    nvs_handle_t nvs_handle;
+    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &nvs_handle);
+    if (err != ESP_OK)
+    {
+        ESP_LOGW(TAG, "wifi_clear_creds: NVS open failed (0x%x) — nothing to clear", err);
+        return err;
+    }
+ 
+    nvs_erase_all(nvs_handle);
+    err = nvs_commit(nvs_handle);
+    nvs_close(nvs_handle);
+ 
+    ESP_LOGI(TAG, "Stored WiFi credentials cleared — next boot uses compile-time defaults");
+    return err;
+}
+
+
 esp_err_t wifi_scan_networks(wifi_ap_record_t *out_records,
                               uint16_t max_records,
                               uint16_t *out_count)
@@ -553,12 +622,26 @@ esp_err_t wifi_scan_networks(wifi_ap_record_t *out_records,
     }
 
     /* A scan briefly borrows the radio, so serialize against any other
-     * scan/connect call already in progress rather than racing it. */
+     * scan/connect call already in progress rather than racing it. 
+     One operation happens than after this other 
+     Wifi connect and scan cannot happens at the same time  */
     if (xSemaphoreTake(s_wifi_op_mutex, pdMS_TO_TICKS(20000)) != pdTRUE)
     {
         return WIFI_ERR_TIMEOUT;
     }
 
+    // This tells esp32 how to scan 
+    // Passive : ESP listens
+    //Router talks
+    // ESP hears it
+    /*
+    Active
+    ESP
+    "Anybody here?"
+    ↓
+    Routers reply immediately.
+    Much faster.
+    */
     wifi_scan_config_t scan_cfg = {
         .ssid        = NULL,
         .bssid       = NULL,
@@ -579,14 +662,20 @@ esp_err_t wifi_scan_networks(wifi_ap_record_t *out_records,
     }
 
     uint16_t raw_count = 0;
+    /*
+    Ask the driver
+        How many APs did you find?
+    */
     esp_wifi_scan_get_ap_num(&raw_count);
     if (raw_count == 0)
     {
         *out_count = 0;
+        //release the semaphore we don't have to do with single mutex 
         xSemaphoreGive(s_wifi_op_mutex);
         return ESP_OK;
     }
 
+     // allocate memory for ap's it find 
     wifi_ap_record_t *raw = calloc(raw_count, sizeof(wifi_ap_record_t));
     if (raw == NULL)
     {
@@ -594,6 +683,19 @@ esp_err_t wifi_scan_networks(wifi_ap_record_t *out_records,
         return ESP_ERR_NO_MEM;
     }
 
+    /*
+    Now the driver copies all scan results into
+    raw[]
+    Each record contains information like
+    SSID
+    RSSI
+    Channel
+    Authentication
+    BSSID
+
+    */
+   // max ap records number 
+   // raw is the ap records array 
     err = esp_wifi_scan_get_ap_records(&raw_count, raw);
     xSemaphoreGive(s_wifi_op_mutex);
 
@@ -609,6 +711,7 @@ esp_err_t wifi_scan_networks(wifi_ap_record_t *out_records,
     uint16_t unique = 0;
     for (uint16_t i = 0; i < raw_count && unique < max_records; i++)
     {
+        // look for the NULL Terminator 
         if (raw[i].ssid[0] == '\0')
         {
             continue; /* hidden/blank SSID — nothing useful to show a user */
@@ -617,6 +720,9 @@ esp_err_t wifi_scan_networks(wifi_ap_record_t *out_records,
         bool dup = false;
         for (uint16_t j = 0; j < unique; j++)
         {
+            /*
+            Duplicate removal
+            */
             if (strcmp((char *)out_records[j].ssid, (char *)raw[i].ssid) == 0)
             {
                 dup = true;
@@ -647,6 +753,7 @@ esp_err_t wifi_scan_networks(wifi_ap_record_t *out_records,
         out_records[j + 1] = key;
     }
 
+    // store the count 
     *out_count = unique;
     ESP_LOGI(TAG, "Scan complete: %u unique network(s) found", unique);
     return ESP_OK;
@@ -658,12 +765,25 @@ esp_err_t wifi_sta_connect_to(const char *ssid, const char *pass, uint32_t timeo
     {
         return ESP_ERR_INVALID_ARG;
     }
+    /*
+    typedef struct
+{
+    struct
+    {
+        uint8_t ssid[32];
+        uint8_t password[64];
+    } sta;
+
+} wifi_config_t;
+    */
+    // get the size of ssid array defined internally 
     if (strlen(ssid) >= sizeof(((wifi_config_t *)0)->sta.ssid) ||
         (pass != NULL && strlen(pass) >= sizeof(((wifi_config_t *)0)->sta.password)))
     {
         return ESP_ERR_INVALID_ARG;
     }
 
+    // only scanning or Connecting must happens at a time 
     if (xSemaphoreTake(s_wifi_op_mutex, pdMS_TO_TICKS(5000)) != pdTRUE)
     {
         return WIFI_ERR_TIMEOUT;
@@ -674,7 +794,9 @@ esp_err_t wifi_sta_connect_to(const char *ssid, const char *pass, uint32_t timeo
      * without having to re-type the SSID). */
     wifi_save_creds(ssid, pass ? pass : "");
 
+
     wifi_config_t sta_cfg = {0};
+    // strlcpy instead of strcpy because this is safe 
     strlcpy((char *)sta_cfg.sta.ssid, ssid, sizeof(sta_cfg.sta.ssid));
     strlcpy((char *)sta_cfg.sta.password, pass ? pass : "", sizeof(sta_cfg.sta.password));
     sta_cfg.sta.threshold.authmode = (pass != NULL && strlen(pass) > 0)
@@ -684,6 +806,12 @@ esp_err_t wifi_sta_connect_to(const char *ssid, const char *pass, uint32_t timeo
     sta_cfg.sta.pmf_cfg.required = false;
     sta_cfg.sta.sae_pwe_h2e       = WPA3_SAE_PWE_BOTH;
 
+    // Clear a Bits 
+    /*
+    CONNECTED = 0   
+    FAIL = 0
+    Everything starts fresh.
+    */
     xEventGroupClearBits(s_wifi_event_group, WIFI_CONNECTED_BIT | WIFI_FAIL_BIT);
     s_retry_count = 0;
     s_connected   = false;
@@ -708,6 +836,7 @@ esp_err_t wifi_sta_connect_to(const char *ssid, const char *pass, uint32_t timeo
         return err;
     }
 
+    // wait for connection 
     EventBits_t bits = xEventGroupWaitBits(
         s_wifi_event_group,
         WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,

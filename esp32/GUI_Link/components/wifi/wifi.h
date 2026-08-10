@@ -6,14 +6,30 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define WIFI_AP_SSID "BEACONGUI_WIFI" 
+#define WIFI_AP_PASS "11223344"
+#define WIFI_AP_MAX_CONNECTIONS 4 
+#define WIFI_AP_BEACON_INTERVAL 100      // Ap beacon : 100 Milliseconds  :
+#define WIFI_AP_IP "192.168.0.2"         // Ap default IP
+#define WIFI_AP_GATEWAY "192.168.0.2"    // AP default gateway
+#define WIFI_AP_NETMASK "255.255.255.0"  // Ap NetMask
+#define WIFI_AP_BANDWIDTH WIFI_BW20   // 20 Mhz Wifi Bandwidth
+#define WIFI_WIFI_STA_POWER_SAVE WIFI_PS_NONE // High power Always ON
+#define WIFI_AP_CHANNEL 1                   // select channel 1    : 22Mhz separation
+#define WIFI_AP_SSID_HIDDEN 0            // zero make it visible we can see the ssid
+
+#define NVS_NAMESPACE   "wifi_cfg"
+#define NVS_KEY_SSID    "ssid"
+#define NVS_KEY_PASS    "pass"
+
 #define WIFI_OK           ESP_OK
 #define WIFI_ERR_NO_CREDS ESP_ERR_NOT_FOUND   /* NVS empty, need creds   */
 #define WIFI_ERR_TIMEOUT  ESP_ERR_TIMEOUT      /* Could not connect in time */
 #define WIFI_ERR_FAILED   ESP_FAIL             /* Auth fail / AP not found  */
 
 
-#define WIFI_DEFAULT_SSID      "Oppo"        /* fallback if NVS empty */
-#define WIFI_DEFAULT_PASS      "Ludokhan2247"    /* fallback if NVS empty */
+#define WIFI_DEFAULT_SSID      "MUHMMAD_SALMAN 6712"        /* fallback if NVS empty */
+#define WIFI_DEFAULT_PASS      "E943d01/"    /* fallback if NVS empty */
 #define WIFI_CONNECT_TIMEOUT_MS 15000            /* 15 seconds to get IP  */
 #define WIFI_MAX_RETRY          5                /* attempts before FAILED */
 
@@ -26,37 +42,25 @@
 
 
 /*
- * wifi_manager_init
+ * wifi_init
  *
  * Initialises the WiFi stack, loads credentials from NVS (or uses defaults),
  * starts AP+STA mode, starts mDNS (http://beacon.local), and waits up to
  * WIFI_CONNECT_TIMEOUT_MS for an IP on the station interface.
  *
- * NOTE: the AP interface (and therefore the local webserver you attach to
- * it) comes up regardless of whether the STA connection succeeds — that is
- * intentional, since a failed/absent STA connection is exactly the case
- * where a user needs to reach the AP + webpage to pick a new network.
- *
- * Must be called AFTER nvs_flash_init() in app_main.
- * Must be called BEFORE any task that needs network (SNTP, OTA, HTTP).
- *
- * Returns:
- *   ESP_OK           — connected, IP assigned
- *   WIFI_ERR_TIMEOUT  — no IP within timeout (AP may be down)
- *   WIFI_ERR_FAILED   — auth failure, wrong password
  */
 
 esp_err_t wifi_init(void);
 
 /*
- * wifi_manager_is_connected
+ * wifi_is_connected
  * Non-blocking. Returns true if we currently have an IP address.
  * Safe to call from any task or ISR.
  */
 bool wifi_is_connected(void);
 
 /*
- * wifi_manager_wait_connected
+ * wifi_wait_connected
  * Blocks the calling task until WiFi is connected or timeout_ms elapses.
  * Pass portMAX_DELAY to wait forever.
  * Returns ESP_OK if connected, ESP_ERR_TIMEOUT otherwise.
@@ -64,7 +68,7 @@ bool wifi_is_connected(void);
 esp_err_t wifi_wait_connected(uint32_t timeout_ms);
 
 /*
- * wifi_manager_get_ip
+ * wifi_get_ip
  * Returns the current IP as a string e.g. "192.168.1.42".
  * Returns "0.0.0.0" if not connected.
  * The returned pointer is to an internal static buffer — do not free it.
@@ -72,14 +76,14 @@ esp_err_t wifi_wait_connected(uint32_t timeout_ms);
 const char *wifi_get_ip(void);
 
 /*
- * wifi_manager_get_rssi
+ * wifi_get_rssi
  * Returns signal strength in dBm. Returns 0 if not connected.
  * Typical values: -50 (excellent) to -90 (barely usable).
  */
 int8_t wifi_get_rssi(void);
 
 /*
- * wifi_manager_save_creds
+ * wifi_save_creds
  * Saves new SSID and password to NVS.
  * Call this from the HTTP server when the user submits new credentials.
  * The new credentials take effect on the NEXT call to wifi_manager_init()
@@ -120,5 +124,6 @@ esp_err_t wifi_scan_networks(wifi_ap_record_t *out_records,
  */
 esp_err_t wifi_sta_connect_to(const char *ssid, const char *pass, uint32_t timeout_ms);
 
-
+// Clear the wifi Credentials 
+esp_err_t wifi_clear_creds(void) ; 
 #endif

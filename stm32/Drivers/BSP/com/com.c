@@ -1,5 +1,5 @@
 /*
- * com.c
+ * com.c  (STM32 side)
  * Author: Muhmmad Salman
  *  Created on: Jul 21, 2026
  */
@@ -22,11 +22,11 @@
 #define COM_DMA_NVIC_PRIORITY        5U
 #define COM_DMA_NVIC_SUBPRIORITY     0U
 
-// static defines
+/* Static handles and buffers */
 static UART_HandleTypeDef s_huart2;
 static DMA_HandleTypeDef  s_hdma_usart2_rx;
 
-/* DMA buffers — 32-byte aligned. STM32H743 D-Cache lines are 32 bytes; */
+/* DMA buffers — 32-byte aligned. STM32H743 D-Cache lines are 32 bytes. */
 static uint8_t s_dma_rx_buf[COM_RX_DMA_BUF_SIZE] __attribute__((aligned(32)));
 static uint8_t s_dma_tx_buf[COM_MAX_TX_SIZE]     __attribute__((aligned(32)));
 
@@ -56,11 +56,7 @@ static void USART2_GPIO_Init(void)
     GPIO_InitStruct.Alternate = GPIO_AF7_USART2;
     HAL_GPIO_Init(COM_USART2_GPIO_PORT, &GPIO_InitStruct);
 
-    /* RX pin: push-pull, WITH PULL-UP.
-       FIX: A pull-up prevents the pin from floating when the cable is
-       disconnected. A floating pin causes continuous framing errors and
-       DMA aborts. Pulled high, a disconnected pin just looks like an
-       idle line (harmless). */
+    /* RX pin: push-pull, WITH PULL-UP to prevent floating when disconnected */
     GPIO_InitStruct.Pin       = COM_USART2_RX_PIN;
     GPIO_InitStruct.Pull      = GPIO_PULLUP;
     HAL_GPIO_Init(COM_USART2_GPIO_PORT, &GPIO_InitStruct);
@@ -81,7 +77,8 @@ static void USART2_DMA_Init(void)
     s_hdma_usart2_rx.Init.Priority            = DMA_PRIORITY_LOW;
     s_hdma_usart2_rx.Init.FIFOMode            = DMA_FIFOMODE_DISABLE;
 
-    if (HAL_DMA_Init(&s_hdma_usart2_rx) != HAL_OK) {
+    if (HAL_DMA_Init(&s_hdma_usart2_rx) != HAL_OK)
+    {
         Error_Handler();
     }
 
@@ -96,13 +93,15 @@ void HAL_UART_MspInit(UART_HandleTypeDef *huart)
 {
     RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
 
-    if (huart->Instance != USART2) {
-        return;   /* not ours — some other UART's MspInit lives elsewhere */
+    if (huart->Instance != USART2)
+    {
+        return;   /* not ours */
     }
 
     PeriphClkInitStruct.PeriphClockSelection      = RCC_PERIPHCLK_USART2;
     PeriphClkInitStruct.Usart234578ClockSelection = RCC_USART234578CLKSOURCE_D2PCLK1;
-    if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK) {
+    if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
+    {
         Error_Handler();
     }
 
@@ -129,27 +128,35 @@ static Com_Status_t USART2_PeripheralInit(void)
     s_huart2.Init.ClockPrescaler         = UART_PRESCALER_DIV1;
     s_huart2.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
 
-    if (HAL_UART_Init(&s_huart2) != HAL_OK) {
+    if (HAL_UART_Init(&s_huart2) != HAL_OK)
+    {
         return COM_ERROR;
     }
-    if (HAL_UARTEx_SetTxFifoThreshold(&s_huart2, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK) {
+    if (HAL_UARTEx_SetTxFifoThreshold(&s_huart2, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
+    {
         return COM_ERROR;
     }
-    if (HAL_UARTEx_SetRxFifoThreshold(&s_huart2, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK) {
+    if (HAL_UARTEx_SetRxFifoThreshold(&s_huart2, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
+    {
         return COM_ERROR;
     }
-    if (HAL_UARTEx_DisableFifoMode(&s_huart2) != HAL_OK) {
+    if (HAL_UARTEx_DisableFifoMode(&s_huart2) != HAL_OK)
+    {
         return COM_ERROR;
     }
 
     return COM_OK;
 }
 
+/*
+ * Plain circular DMA — no idle-line detection.
+ * The frame parser in frame.c handles all sync/framing.
+ */
 static Com_Status_t com_start_dma(void)
 {
-    HAL_StatusTypeDef st = HAL_UARTEx_ReceiveToIdle_DMA(&s_huart2,
-                                                         s_dma_rx_buf,
-                                                         COM_RX_DMA_BUF_SIZE);
+    HAL_StatusTypeDef st = HAL_UART_Receive_DMA(&s_huart2,
+                                                 s_dma_rx_buf,
+                                                 COM_RX_DMA_BUF_SIZE);
     return (st == HAL_OK) ? COM_OK : COM_ERROR;
 }
 
@@ -160,7 +167,8 @@ Com_Status_t Com_Init(void)
     s_last_dma_pos = 0U;
     s_need_rearm   = false;
 
-    if (USART2_PeripheralInit() != COM_OK) {
+    if (USART2_PeripheralInit() != COM_OK)
+    {
         return COM_ERROR;
     }
 
@@ -174,12 +182,15 @@ void Com_RegisterEventCallback(Com_EventCallback_t callback)
 
 Com_Status_t Com_Send(const uint8_t *data, uint16_t length)
 {
-    if ((data == NULL) || (length == 0U) || (length > COM_MAX_TX_SIZE)) {
+    if ((data == NULL) || (length == 0U) || (length > COM_MAX_TX_SIZE))
+    {
         return COM_ERROR;
     }
 
     memcpy(s_dma_tx_buf, data, length);
-    SCB_CleanDCache_by_Addr((uint32_t *)s_dma_tx_buf, COM_MAX_TX_SIZE);
+
+    /* Note: SCB_CleanDCache not strictly needed for polling TX,
+     * but kept for safety if someone switches to DMA TX later */
 
     HAL_StatusTypeDef st = HAL_UART_Transmit(&s_huart2, s_dma_tx_buf, length, 100U);
     return (st == HAL_OK) ? COM_OK : COM_TIMEOUT;
@@ -187,7 +198,8 @@ Com_Status_t Com_Send(const uint8_t *data, uint16_t length)
 
 uint16_t Com_ReadAvailable(uint8_t *dst, uint16_t max_length)
 {
-    if ((dst == NULL) || (max_length == 0U)) {
+    if ((dst == NULL) || (max_length == 0U))
+    {
         return 0U;
     }
 
@@ -203,7 +215,8 @@ uint16_t Com_ReadAvailable(uint8_t *dst, uint16_t max_length)
         s_need_rearm = false;
         s_last_dma_pos = 0U;
 
-        if (com_start_dma() != COM_OK) {
+        if (com_start_dma() != COM_OK)
+        {
             /* If rearm failed (e.g. HAL_BUSY), retry next poll */
             s_need_rearm = true;
         }
@@ -214,19 +227,23 @@ uint16_t Com_ReadAvailable(uint8_t *dst, uint16_t max_length)
 
     uint16_t current_pos = (uint16_t)(COM_RX_DMA_BUF_SIZE - __HAL_DMA_GET_COUNTER(s_huart2.hdmarx));
 
-    if (current_pos == s_last_dma_pos) {
+    if (current_pos == s_last_dma_pos)
+    {
         return 0U;
     }
 
     uint16_t copied;
 
-    if (current_pos > s_last_dma_pos) {
+    if (current_pos > s_last_dma_pos)
+    {
         uint16_t avail = (uint16_t)(current_pos - s_last_dma_pos);
         uint16_t n     = (avail > max_length) ? max_length : avail;
         memcpy(dst, &s_dma_rx_buf[s_last_dma_pos], n);
         s_last_dma_pos = (uint16_t)(s_last_dma_pos + n);
         copied = n;
-    } else {
+    }
+    else
+    {
         uint16_t tail_avail = (uint16_t)(COM_RX_DMA_BUF_SIZE - s_last_dma_pos);
         uint16_t n          = (tail_avail > max_length) ? max_length : tail_avail;
         memcpy(dst, &s_dma_rx_buf[s_last_dma_pos], n);
@@ -252,39 +269,30 @@ Com_Status_t Com_Recover(void)
 }
 
 
-// ISR callbacks
+/* ISR callbacks */
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 {
-    if (huart->Instance == USART2) {
+    if (huart->Instance == USART2)
+    {
         __HAL_UART_CLEAR_FLAG(huart,
             UART_CLEAR_OREF | UART_CLEAR_NEF | UART_CLEAR_FEF | UART_CLEAR_PEF);
 
         /*
-         * CRITICAL FIX: HAL internally aborts the DMA reception on the
-         * FIRST error. A threshold DOES NOT WORK because after the 1st
-         * error aborts DMA, errors 2 and 3 physically cannot occur!
-         *
-         * We set a flag to defer the restart to Com_ReadAvailable()
-         * (task context) to avoid locking up the CPU if a floating pin
-         * generates errors continuously.
+         * HAL internally aborts the DMA reception on error.
+         * We defer the restart to Com_ReadAvailable() (task context)
+         * to avoid locking up the CPU if a floating pin generates
+         * errors continuously.
          */
         s_need_rearm = true;
 
-        if (s_event_cb != NULL) {
+        if (s_event_cb != NULL)
+        {
             s_event_cb(COM_EVENT_ERROR);
         }
     }
 }
 
-void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
-{
-    (void)Size;
-    if (huart->Instance == USART2) {
-        if (s_event_cb != NULL) {
-            s_event_cb(COM_EVENT_RX_DATA);
-        }
-    }
-}
+/* NOTE: HAL_UARTEx_RxEventCallback REMOVED — not used with plain circular DMA */
 
 void USART2_IRQHandler(void)
 {

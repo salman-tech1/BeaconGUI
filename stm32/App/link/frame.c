@@ -202,7 +202,7 @@ frame_Status_t frame_Send(uint8_t cmd, uint16_t seq, uint8_t flags,
     }
 
     /* Wire layout: [0]SYNC1 [1]SYNC2 [2-3]length [4]cmd [5-6]seq [7]flags
-       [8..N]payload [N+1..N+2]CRC. CRC covers cmd+seq+flags+payload only
+       [8..N]payload [N+1..N+2]CRC. CRC covers cmd + seq + flags + payload only
        (not sync bytes or length) — must match the ESP32 side exactly. */
     frame[idx++] = FRAME_SYNC_BYTE_1;
     frame[idx++] = FRAME_SYNC_BYTE_2;
