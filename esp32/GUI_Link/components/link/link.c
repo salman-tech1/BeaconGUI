@@ -16,8 +16,9 @@
 #include "freertos/semphr.h"
 #include "esp_log.h"
 
-#include "system_info.h"
 
+#include "system_info.h"
+#include "ota.h"
 #include "Tasks_common.h"
 #include "link.h"
 #include "com.h"
@@ -41,6 +42,8 @@ link_Stats_t  link_stats;
 static QueueHandle_t     s_rx_queue;
 static SemaphoreHandle_t s_send_mutex;
 static volatile bool     s_need_recover = false;
+static volatile bool  is_link_init = false ; 
+
 
 static void com_event_handler(Com_Event_t event)
 {
@@ -106,7 +109,7 @@ static void link_app_task(void *pvParameters)
                 break;
 
             case CMD_TIME_REQ:
-                /* STM32 asking for current time — read from system_info */
+                /* STM32 is asking for current time — read from system_info */
                 link_SendTimeSync(packet.seq);
                 break;
 
@@ -116,24 +119,24 @@ static void link_app_task(void *pvParameters)
                 break;
 
             case CMD_SLOT_INFO_RESP:
-                /* TODO: ota_manager_notify_slot_info_resp() */
+                /* STM32 replied with target slot info — wake up OTA manager */
+                ota_notify_slot_info_resp(packet.payload, packet.payload_length);
                 break;
 
             case CMD_OTA_ACK:
-                /* TODO: ota_manager_notify_ota_ack(); */
+                /* STM32 acknowledged a data chunk — wake up OTA sender task */
+                ota_notify_ota_ack();
                 break;
 
             case CMD_OTA_START:
-                /* TODO: add OTA start handler here */
-                break;
-
             case CMD_OTA_DATA:
-                /* TODO: add OTA chunk handler here */
-                break;
-
             case CMD_OTA_END:
-                /* TODO: add OTA end handler here */
+                /* ESP32 is the initiator for these, should not receive them */
+                ESP_LOGW(TAG, "Unexpected OTA command 0x%02X from STM32", packet.cmd);
                 break;
+                case CMD_OTA_READY:
+             ota_notify_ota_ready();
+             break;
 
             default:
                 break;
@@ -229,9 +232,19 @@ void link_Init(void)
     Com_RegisterEventCallback(com_event_handler);
     frame_RegisterPacketCallback(on_packet_received);
 
+    // 
+  
     /* 4. tasks last — they start running immediately */
     xTaskCreate(link_rx_task, "link_rx", LINK_RX_TASK_STACK, NULL,
                 LINK_RX_TASK_PRIORITY, NULL);
     xTaskCreate(link_app_task, "link_app", LINK_APP_TASK_STACK, NULL,
                 LINK_APP_TASK_PRIORITY, NULL);
+    is_link_init = true ; 
+}
+
+// 
+__attribute__((unused))
+ bool is_linkinit(void)
+{
+    return is_link_init;
 }

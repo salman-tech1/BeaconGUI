@@ -7,20 +7,19 @@
 #include "esp_wifi.h"
 #include "httpServer.h"
 #include "wifi.h"
-#include "esp_log.h"
 #include "esp_err.h"
 #include "nvs_flash.h"
 
 #include "link.h"
-#include "frame.h"
 #include "system_info.h"
 #include "sntp.h"
+#include "ota.h"
 
-static const char *TAG = "Board_test";
+static const char *TAG = "MAIN";
 
 void app_main(void)
 {
-    /* NVS must be ready before wifi_init() reads/writes credentials */
+     /* NVS must be ready before wifi_init() reads/writes credentials */
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND)
     {
@@ -35,6 +34,7 @@ void app_main(void)
     
     ESP_LOGI(TAG, "Initializing UART link...");
     link_Init();
+    ota_init();
 
     ESP_LOGI(TAG, "Calling wifi_init()...");
     esp_err_t wifi_status = wifi_init();

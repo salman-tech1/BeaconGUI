@@ -108,36 +108,46 @@ Com_Status_t Com_Send(const uint8_t *data, uint16_t length)
 
 /*
 read the available bytes 
-*/
-uint16_t Com_ReadAvailable(uint8_t *dst, uint16_t max_length)
+*/uint16_t Com_ReadAvailable(uint8_t *dst, uint16_t max_length)
 {
     if ((dst == NULL) || (max_length == 0U)) {
         return 0U;
     }
 
-    /* flushing any error */
     if (s_uart_event_queue != NULL) {
         uart_event_t event;
         while (xQueueReceive(s_uart_event_queue, &event, 0) == pdTRUE) {
             switch (event.type) {
             case UART_FIFO_OVF:
             case UART_BUFFER_FULL:
-            case UART_BREAK:
-            case UART_FRAME_ERR:
-            case UART_PARITY_ERR:
+                /* Buffer overflow - data IS lost, flush is correct */
                 uart_flush_input(COM_UART_PORT_NUM);
                 xQueueReset(s_uart_event_queue);
                 if (s_event_cb != NULL) {
                     s_event_cb(COM_EVENT_ERROR);
                 }
-                return 0U;   /* let the caller re-poll next cycle */
+                return 0U;
+            
+            case UART_BREAK:
+                /* Break condition - line went low */
+                if (s_event_cb != NULL) {
+                    s_event_cb(COM_EVENT_ERROR);
+                }
+                break;
+                
+            case UART_FRAME_ERR:
+            case UART_PARITY_ERR:
+                /* Single-byte errors - DON'T flush!
+                 * The bad byte fails CRC and is discarded by parser. */
+                ESP_LOGW(TAG, "UART frame/parity error (single byte)");
+                break;
+                
             default:
-                break;       /* UART_DATA etc. — real bytes picked up below */
+                break;
             }
         }
     }
 
-    // Read bytes 
     int len = uart_read_bytes(COM_UART_PORT_NUM, dst, max_length,
                                pdMS_TO_TICKS(COM_RX_POLL_TIMEOUT_MS));
     if (len <= 0) {
@@ -150,7 +160,6 @@ uint16_t Com_ReadAvailable(uint8_t *dst, uint16_t max_length)
 
     return (uint16_t)len;
 }
-
 /*
 flushes the input buffer and resets the
  event queue.

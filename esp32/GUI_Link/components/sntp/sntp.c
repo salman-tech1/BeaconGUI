@@ -114,9 +114,18 @@ static void sntp_task(void *arg)
     }
 }
 
+static void configure_timezone(void)
+{
+    setenv("TZ", "PKT-5", 1);
+    tzset();
+    ESP_LOGI(TAG, "Timezone set to PKT (UTC+5)");
+}
 
 void sntp_init_(void)
-{
+{   
+    // Configure timezone 
+    configure_timezone() ; 
+
     if (xTaskCreate(sntp_task, "sntp", SNTP_TASK_STACK, NULL,
                     SNTP_TASK_PRIORITY, NULL) != pdPASS)
     {

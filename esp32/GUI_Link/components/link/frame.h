@@ -42,7 +42,7 @@ extern "C" {
 #define CMD_TIME_REQ            0x31U   /* STM32 -> ESP32 : request current time */
 #define CMD_SLOT_INFO_REQ       0x40U   /* ESP32 -> STM32, no payload */
 #define CMD_SLOT_INFO_RESP      0x41U   /* STM32 -> ESP32, payload = uint8 target_slot */
-
+#define CMD_OTA_READY           0x24U   /* STM32 -> ESP32 : slot erased, ready for data */
 typedef enum {
     FRAME_OK    = 0,
     FRAME_ERROR = -1,

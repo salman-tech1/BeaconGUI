@@ -38,8 +38,8 @@ static SemaphoreHandle_t  s_wifi_op_mutex     = NULL; // guards scan/connect aga
 static volatile bool      s_connected        = false;
 static volatile int       s_retry_count      = 0;
 static char               s_ip_str[16]       = "0.0.0.0";
-static esp_netif_t       *s_netif_sta        = NULL;
-static esp_netif_t       *s_netif_ap        = NULL ; 
+static esp_netif_t        *s_netif_sta        = NULL;
+static esp_netif_t        *s_netif_ap        = NULL ; 
 
 
 static wifi_info_t  wif_info  ; 

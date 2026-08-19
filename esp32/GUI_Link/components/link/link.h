@@ -48,7 +48,8 @@ void link_SendWifiStatus(uint16_t seq);
  */
 void link_SendTimeSync(uint16_t seq);
 
-
+// to check if the driver initialized 
+bool  is_linkinit() ; 
 
 #ifdef __cplusplus
 }

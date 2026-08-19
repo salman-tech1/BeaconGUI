@@ -20,5 +20,7 @@
 #define SNTP_TASK_STACK  4096
 #define SNTP_TASK_PRIORITY 4 
 
-
+// OTA task 
+#define OTA_TASK_STACK_SIZE         8192
+#define OTA_TASK_PRIORITY          5
 #endif 

@@ -6,5 +6,6 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
 set(EXTRA_COMPONENT_DIRS "./components")
 
+set(PARTITION_TABLE_CSV "partitions.csv")
 
 project(GUI_Link)

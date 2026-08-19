@@ -2,6 +2,8 @@
  * system_info.c  (ESP32 side)
  *
  * Tracks WiFi/time state for publishing to STM32 via UART.
+ *
+ * FIXED: Added periodic "resync" broadcasts to handle STM32 reset.
  */
 
 #include <string.h>
@@ -76,6 +78,18 @@ void sysinfo_get_snapshot(SystemInfo_t *out_snapshot)
     }
 }
 
+
+/* How often to force-broadcast state, even if unchanged.
+ * 30 seconds is a good balance: fast enough for user to not notice
+ * a stale display after reset, slow enough to not spam the UART. */
+#define RESYNC_INTERVAL_MS     (30U * 1000U)
+
+/* How often to send heartbeats (unchanged) */
+#define HEARTBEAT_INTERVAL_MS  6000U
+
+/* Counter for resync timing */
+static uint32_t s_last_resync_tick = 0U;
+
 static void publisher_task(void *arg)
 {
     (void)arg;
@@ -91,19 +105,27 @@ static void publisher_task(void *arg)
     char   last_ip[WIFI_MAX_IP_LEN] = {0};
 
     /* Time change tracking */
-    bool    have_sent_time  = false;
-    bool    last_synced     = false;
+    bool     have_sent_time  = false;
+    bool     last_synced     = false;
     uint32_t last_timestamp = 0U;
+
+    /* Get initial tick for resync timer */
+    s_last_resync_tick = xTaskGetTickCount();
 
     for (;;)
     {
         SystemInfo_t sys;
         sysinfo_get_snapshot(&sys);
 
-        /* ── 1. Heartbeat: unconditional keep-alive ──────────────────── */
-        link_Send(CMD_HEARTBEAT, hb_seq++, 0, NULL, 0);
+        uint32_t now = xTaskGetTickCount();
 
-        /* ── 2. WiFi status: only on a real change ───────────────────── */
+        /* ── 1. Heartbeat (every 6 seconds) ─────────────────────────── */
+        if (is_linkinit())
+        {
+            link_Send(CMD_HEARTBEAT, hb_seq++, 0, NULL, 0);
+        }
+
+        /* ─ WiFi status change detection ────────────────────────── */
         bool ip_changed = (strncmp(sys.wifi.wifi_ip, last_ip, sizeof(last_ip)) != 0);
 
         bool wifi_changed = (!have_sent_wifi)
@@ -111,9 +133,21 @@ static void publisher_task(void *arg)
                           || (sys.wifi.wifi_rssi      != last_rssi)
                           || ip_changed;
 
-        if (wifi_changed)
+        /*  Time change detection ──────────────────────────────── */
+        bool time_changed = (!have_sent_time)
+                          || (sys.time.synced         != last_synced)
+                          || (sys.time.unix_timestamp != last_timestamp);
+
+        /*  Periodic resync check ──────────────────────────────── */
+        bool resync_due = ((now - s_last_resync_tick) >= pdMS_TO_TICKS(RESYNC_INTERVAL_MS));
+
+        /* ─ Send WiFi status if: changed OR resync due ─────────── */
+        if (wifi_changed || (resync_due && sys.wifi.wifi_connected))
         {
-            link_SendWifiStatus(wifi_seq++);
+            if (is_linkinit())
+            {
+                link_SendWifiStatus(wifi_seq++);
+            }
 
             have_sent_wifi = true;
             last_connected = sys.wifi.wifi_connected;
@@ -122,21 +156,27 @@ static void publisher_task(void *arg)
             strncpy(last_ip, sys.wifi.wifi_ip, sizeof(last_ip) - 1U);
         }
 
-        /* ── 3. Time sync: only when synced state or timestamp changes ─ */
-        bool time_changed = (!have_sent_time)
-                          || (sys.time.synced         != last_synced)
-                          || (sys.time.unix_timestamp != last_timestamp);
-
-        if (time_changed && sys.time.synced)
+        /*  Send time sync if: changed AND synced, OR resync due ─ */
+        if ((time_changed && sys.time.synced) || 
+            (resync_due && sys.time.synced))
         {
-            link_SendTimeSync(time_seq++);
+            if (is_linkinit())
+            {
+                link_SendTimeSync(time_seq++);
+            }
 
             have_sent_time = true;
             last_synced    = sys.time.synced;
             last_timestamp = sys.time.unix_timestamp;
         }
 
-        vTaskDelay(pdMS_TO_TICKS(5000));
+        /* ─ Reset resync timer ─────────────────────────────────── */
+        if (resync_due)
+        {
+            s_last_resync_tick = now;
+            ESP_LOGD(TAG, "Periodic resync sent");
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(HEARTBEAT_INTERVAL_MS));
     }
-    vTaskDelete(NULL);
 }

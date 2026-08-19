@@ -26,6 +26,6 @@ dependencies:
 direct_dependencies:
 - espressif/cjson
 - espressif/mdns
-manifest_hash: 5da6652fca6321d8f60906ab5cb86a4bbf505fcd620419f26ce982855e885996
+manifest_hash: eb02f007dd890d82ed2e9ad4428bc4f78481a7bec60f8cb715f5c9834f83160e
 target: esp32
 version: 3.0.0
