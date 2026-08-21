@@ -54,6 +54,14 @@ static int32_t MX_FMC_Init(void)
 	  /* Peripheral clock enable */
 	  __HAL_RCC_FMC_CLK_ENABLE();
 
+	  /* Force the FMC to a known state. On a warm restart (e.g. the bootloader
+	     jumped here after the previous image left the SDRAM controller running),
+	     re-running the init sequence on an already-configured FMC can hang in
+	     HAL_SDRAM_SendCommand(). A reset guarantees a clean cold-boot-equivalent
+	     start every time. */
+	  __HAL_RCC_FMC_FORCE_RESET();
+	  __HAL_RCC_FMC_RELEASE_RESET();
+
 	  /** FMC GPIO Configuration
 	  PF0   ------> FMC_A0
 	  PF1   ------> FMC_A1

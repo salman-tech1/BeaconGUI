@@ -25,6 +25,7 @@ MEMORY
    * CRITICAL: FLASH origin MUST be SLOT_A_BASE (0x08020000)
    * The bootloader jumps to this address
    * LENGTH is SLOT_A_SIZE (896KB)
+    * SLOT B 0x08100000
    */
   FLASH (rx)     : ORIGIN = 0x08020000, LENGTH = 896K   
   

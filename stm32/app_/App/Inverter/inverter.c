@@ -10,7 +10,7 @@
 
 
 #define INVERTER_REG_BLOCK_START      0x0000U   /* first holding register of the telemetry block */
-#define INVERTER_REG_BLOCK_COUNT      2U        /* registers read in one Modbus transaction */
+#define INVERTER_REG_BLOCK_COUNT      6U        /* registers read in one Modbus transaction (offsets 0..5) */
 
 /* Offsets within the block read by Inverter_Read() */
 #define INVERTER_OFF_AC_VOLTAGE       0U   /* raw x 0.1  -> V  */

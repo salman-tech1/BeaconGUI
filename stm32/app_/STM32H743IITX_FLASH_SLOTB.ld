@@ -1,40 +1,12 @@
 /*
 ******************************************************************************
 **
-**  File        : STM32H743IITX_FLASH_SLOTB.ld
+**  File        : LinkerScript.ld
 **
-**  Author      : STM32CubeIDE
-**
-**  Abstract    : Slot B linker script for STM32H7 series.
-**                Identical to STM32H743IITX_FLASH.ld except the FLASH
-**                region ORIGIN is moved to the Slot B base (0x08100000)
-**                so the application can be built to execute from Slot B.
-**                Only one image runs at a time, so the RAM map is shared
-**                with the Slot A build.
-**
-**                2048Kbytes FLASH and 1056Kbytes RAM
-**
-**                Set heap size, stack size and stack location according
-**                to application requirements.
-**
-**                Set memory bank area and size if external memory is used.
-**
-**  Target      : STMicroelectronics STM32
-**
-**  Distribution: The file is distributed as is, without any warranty
-**                of any kind.
+**  Abstract    : Linker script for STM32H7 Application in SLOT_A
+**                App MUST be linked at SLOT_A_BASE (0x08020000)
 **
 *****************************************************************************
-** @attention
-**
-** Copyright (c) 2026 STMicroelectronics.
-** All rights reserved.
-**
-** This software is licensed under terms that can be found in the LICENSE file
-** in the root directory of this software component.
-** If no LICENSE file comes with this software, it is provided AS-IS.
-**
-****************************************************************************
 */
 
 /* Entry Point */
@@ -44,17 +16,26 @@ ENTRY(Reset_Handler)
 _estack = ORIGIN(RAM_D1) + LENGTH(RAM_D1);    /* end of RAM */
 /* Generate a link error if heap and stack don't fit into RAM */
 _Min_Heap_Size = 0x200;      /* required amount of heap  */
-_Min_Stack_Size = 0x400; /* required amount of stack */
+_Min_Stack_Size = 0x400;     /* required amount of stack */
 
 /* Specify the memory areas */
 MEMORY
 {
-  FLASH (rx) 	 : ORIGIN = 0x08100000, LENGTH = 896K
+  /* 
+   * CRITICAL: FLASH origin MUST be SLOT_A_BASE (0x08020000)
+   * The bootloader jumps to this address
+   * LENGTH is SLOT_A_SIZE (896KB)
+    * SLOT B 0x08100000
+   */
+  FLASH (rx)     : ORIGIN = 0x08100000, LENGTH = 896K   
+  
   DTCMRAM (xrw)  : ORIGIN = 0x20000000, LENGTH = 128K
   RAM_D1 (xrw)   : ORIGIN = 0x24000000, LENGTH = 512K
   RAM_D2 (xrw)   : ORIGIN = 0x30000000, LENGTH = 288K
   RAM_D3 (xrw)   : ORIGIN = 0x38000000, LENGTH = 64K
   ITCMRAM (xrw)  : ORIGIN = 0x00000000, LENGTH = 64K
+  SDRAM (xrw)    : ORIGIN = 0xC0000000, LENGTH = 32M
+  QSPI_FLASH (rx): ORIGIN = 0x90000000, LENGTH = 16M
 }
 
 /* Define output sections */
@@ -94,25 +75,25 @@ SECTIONS
     . = ALIGN(4);
   } >FLASH
 
-  .ARM.extab (READONLY) : /* The READONLY keyword is only supported in GCC11 and later, remove it if using GCC10 or earlier. */
+  .ARM.extab (READONLY) :
   {
     *(.ARM.extab* .gnu.linkonce.armextab.*)
   } >FLASH
-  .ARM (READONLY) : /* The READONLY keyword is only supported in GCC11 and later, remove it if using GCC10 or earlier. */
+  .ARM (READONLY) :
   {
     __exidx_start = .;
     *(.ARM.exidx*)
     __exidx_end = .;
   } >FLASH
 
-  .preinit_array (READONLY) : /* The READONLY keyword is only supported in GCC11 and later, remove it if using GCC10 or earlier. */
+  .preinit_array (READONLY) :
   {
     PROVIDE_HIDDEN (__preinit_array_start = .);
     KEEP (*(.preinit_array*))
     PROVIDE_HIDDEN (__preinit_array_end = .);
   } >FLASH
 
-  .init_array (READONLY) : /* The READONLY keyword is only supported in GCC11 and later, remove it if using GCC10 or earlier. */
+  .init_array (READONLY) :
   {
     PROVIDE_HIDDEN (__init_array_start = .);
     KEEP (*(SORT(.init_array.*)))
@@ -120,7 +101,7 @@ SECTIONS
     PROVIDE_HIDDEN (__init_array_end = .);
   } >FLASH
 
-  .fini_array (READONLY) : /* The READONLY keyword is only supported in GCC11 and later, remove it if using GCC10 or earlier. */
+  .fini_array (READONLY) :
   {
     PROVIDE_HIDDEN (__fini_array_start = .);
     KEEP (*(SORT(.fini_array.*)))
@@ -139,7 +120,7 @@ SECTIONS
     *(.data)           /* .data sections */
     *(.data*)          /* .data* sections */
     *(.RamFunc)        /* .RamFunc sections */
-    *(.RamFunc*)       /* .RamFunc* sections */
+    *(.RamFunc*)       /* .RamFunc sections */
 
     . = ALIGN(4);
     _edata = .;        /* define a global symbol at data end */
@@ -171,6 +152,14 @@ SECTIONS
     . = . + _Min_Stack_Size;
     . = ALIGN(8);
   } >RAM_D1
+
+  /* FreeRTOS Tasks */ 
+  .dtcm_stack (NOLOAD):
+  {
+    . = ALIGN(8);
+    *(.dtcm_stack)
+    . = ALIGN(8);
+  } >DTCMRAM
 
   /* Remove information from the standard libraries */
   /DISCARD/ :

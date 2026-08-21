@@ -257,7 +257,7 @@ void ota_receiver_init(void)
     s_state              = OTA_RX_IDLE;
     s_bytes_written       = 0;
     s_last_activity_tick = HAL_GetTick();
-    Log_Printf(LOG_LEVEL_INFO, "MAIN", "Metadata struct size: %zu bytes", sizeof(OTA_Metadata_t));
+    Log_Printf(LOG_LEVEL_INFO, "MAIN", "Metadata struct size: %u bytes", (unsigned)sizeof(OTA_Metadata_t));
 }
 
 void ota_receiver_on_start(const uint8_t *payload, uint16_t len, uint16_t seq)

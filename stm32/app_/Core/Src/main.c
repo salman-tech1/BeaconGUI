@@ -111,23 +111,26 @@ static void DWT_Init(void)
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-  /* Cache enabled AFTER all HAL init to avoid subtle register access issues */
   /* USER CODE END 1 */
-	SCB->VTOR = SLOT_BASE_ADDR;
-	__DSB();
-	__ISB();
+
   /* MCU Configuration--------------------------------------------------------*/
+
+
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
 
   /* USER CODE BEGIN Init */
+  /* Latch reset cause before it is cleared, so we can log IWDG/pin/software resets. */
+
+
   DWT_Init();
   /* USER CODE END Init */
 
   /* Configure the system clock */
   SystemClock_Config();
-
+  /* Toggle 1: Reached main() */
+  
   /* USER CODE BEGIN SysInit */
 
   /* USER CODE END SysInit */
@@ -144,13 +147,17 @@ int main(void)
   Log_Init();
   Log_Printf(LOG_LEVEL_INFO, "MAIN", "Application Started SlotA");
 
+  /* The bootloader jumps here with interrupts masked (PRIMASK=1). Now that HAL
+     and peripherals are initialized, re-enable them before any HAL_Delay()-based
+     init (SDRAM_Init), else the TIM7 tick never fires and HAL_Delay() spins. */
+  __enable_irq();
+
   ota_receiver_init();
 
   SDRAM_Init();
   sysinfo_init();
-
-   renderer_init();
-   sensor_init();
+  renderer_init();
+  sensor_init();
 
   /* USER CODE END 2 */
   app_confirm_ota_slot();
@@ -209,6 +216,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLFRACN = 0;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
+	  Log_Printf(LOG_LEVEL_ERROR, "MAIN", "OscConfig FAILED");
     Error_Handler();
   }
 
@@ -225,8 +233,9 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB2CLKDivider = RCC_APB2_DIV2;
   RCC_ClkInitStruct.APB4CLKDivider = RCC_APB4_DIV2;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4) != HAL_OK)
   {
+	  Log_Printf(LOG_LEVEL_ERROR, "MAIN", "HAL_RCC_ClockConfig FAILED");
     Error_Handler();
   }
 
@@ -318,6 +327,8 @@ void Error_Handler(void)
   __disable_irq();
   while (1)
   {
+	  HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+	 for (volatile uint32_t i = 0; i < 500000; i++);
   }
   /* USER CODE END Error_Handler_Debug */
 }

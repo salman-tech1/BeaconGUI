@@ -18,8 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "FreeRTOS.h"
-#include "task.h"
+
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -27,17 +26,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include "version.h"
-#include "iwdg.h"
-#include "system_info.h"
-#include "sensor.h"
-#include "sdram.h"
 #include "log.h"
-#include "render.h"
-#include "temp.h"
-#include "modbus_rtu.h"
-#include "link.h"
-#include "ota.h"
+#include "bootloader.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -63,38 +54,9 @@
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
-static void MX_GPIO_Init(void);
 
-/* USER CODE BEGIN PFP */
+static void MX_GPIO_Init(void) ;
 
-void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
-{
-    (void)xTask;
-    Log_Printf(LOG_LEVEL_ERROR, "vApplicationStackOverflowHook",
-               "STACK OVERFLOW: %s", pcTaskName);
-    taskDISABLE_INTERRUPTS();
-    for (;;) {}
-}
-
-void vApplicationMallocFailedHook(void)
-{
-    size_t free = xPortGetFreeHeapSize();
-    size_t min  = xPortGetMinimumEverFreeHeapSize();
-    Log_Printf(LOG_LEVEL_ERROR, "vApplicationMallocFailedHook",
-               "Malloc failed free=%u min_ever=%u", (unsigned)free, (unsigned)min);
-    taskDISABLE_INTERRUPTS();
-    for (;;) {}
-}
-
-/** @brief Enable DWT cycle counter for microsecond-precision delays.
- *  MUST be called before any code that uses DWT->CYCCNT (e.g. Modbus_DelayUs).
- */
-static void DWT_Init(void)
-{
-    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
-    DWT->CYCCNT = 0;
-    DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
-}
 
 
 /* USER CODE END PFP */
@@ -113,16 +75,11 @@ int main(void)
   /* USER CODE BEGIN 1 */
   /* Cache enabled AFTER all HAL init to avoid subtle register access issues */
   /* USER CODE END 1 */
-	SCB->VTOR = SLOT_BASE_ADDR;
-	__DSB();
-	__ISB();
-  /* MCU Configuration--------------------------------------------------------*/
+
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
 
-  /* USER CODE BEGIN Init */
-  DWT_Init();
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -134,30 +91,46 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_IWDG_Init();
+
   /* USER CODE BEGIN 2 */
 
-  /* Enable caches AFTER all HAL peripheral init */
-  SCB_EnableICache();
-  SCB_EnableDCache();
+Log_Init();
 
-  Log_Init();
-  Log_Printf(LOG_LEVEL_INFO, "MAIN", "Application Started SlotA");
+Log_Printf(LOG_LEVEL_INFO, "Bootloader", "%s started", BOOTLOADER_VERSION);
 
-  ota_receiver_init();
+ Bootloader_Decision_t decision = bootloader_get_boot_decision();
 
-  SDRAM_Init();
-  sysinfo_init();
+    if (decision.is_pending_ota)
+    {
+        Log_Printf(LOG_LEVEL_INFO, "Bootloader", "Slot %c pending — verifying",
+               decision.slot == BOOTLOADER_SLOT_A ? 'A' : 'B');
 
-   renderer_init();
-   sensor_init();
+        Log_Printf(LOG_LEVEL_INFO, "Bootloader","Booting candidate Slot %c (attempt %lu)",
+               decision.slot == BOOTLOADER_SLOT_A ? 'A' : 'B',
+               (unsigned long)decision.boot_attempt);
+    }
+    else
+    {
+    	Log_Printf(LOG_LEVEL_INFO, "Bootloader"," No pending OTA — booting Slot %c",
+               decision.slot == BOOTLOADER_SLOT_A ? 'A' : 'B');
+    }
 
-  /* USER CODE END 2 */
-  app_confirm_ota_slot();
+    if (!bootloader_is_app_valid(decision.boot_address))
+    {
+    	 uint32_t sp = *(volatile uint32_t *)(decision.boot_address);
+    	    uint32_t pc = *(volatile uint32_t *)(decision.boot_address + 4U);
 
-  link_Init();
+    	    Log_Printf(LOG_LEVEL_ERROR, "Bootloader", "Invalid app at 0x%08lX",
+    	               (unsigned long)decision.boot_address);
+    	    Log_Printf(LOG_LEVEL_ERROR, "Bootloader", "  SP=0x%08lX PC=0x%08lX",
+    	               (unsigned long)sp, (unsigned long)pc);
+        while (1) { }
+    }
 
-  vTaskStartScheduler();
+    Log_Printf(LOG_LEVEL_INFO, "Bootloader"," Jumping to 0x%08lX", decision.boot_address);
+    HAL_Delay(100);
+
+    bootloader_jump_to_app(decision.boot_address);
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* We should never get here as control is now taken by the scheduler */
@@ -203,12 +176,13 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLN = 160;
   RCC_OscInitStruct.PLL.PLLP = 2;
   RCC_OscInitStruct.PLL.PLLQ = 2;
-  RCC_OscInitStruct.PLL.PLLR = 2;
+  RCC_OscInitStruct.PLL.PLLR = 4;
   RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1VCIRANGE_2;
   RCC_OscInitStruct.PLL.PLLVCOSEL = RCC_PLL1VCOWIDE;
   RCC_OscInitStruct.PLL.PLLFRACN = 0;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
+	  Log_Printf(LOG_LEVEL_ERROR, "MAIN", "OscConfig FAILED");
     Error_Handler();
   }
 
@@ -225,8 +199,9 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB2CLKDivider = RCC_APB2_DIV2;
   RCC_ClkInitStruct.APB4CLKDivider = RCC_APB4_DIV2;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4) != HAL_OK)
   {
+	  Log_Printf(LOG_LEVEL_ERROR, "MAIN", "OscConfig FAILED");
     Error_Handler();
   }
 
@@ -258,17 +233,10 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOG_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LCD_RESET_GPIO_Port, LCD_RESET_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOH, LCD_BACKLIGHT_Pin|GT_RESET_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(MAX485_DIR_GPIO_Port, MAX485_DIR_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : LED_Pin */
   GPIO_InitStruct.Pin = LED_Pin;
@@ -276,6 +244,7 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LED_GPIO_Port, &GPIO_InitStruct);
+
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
@@ -318,6 +287,8 @@ void Error_Handler(void)
   __disable_irq();
   while (1)
   {
+	  HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+	 for (volatile uint32_t i = 0; i < 500000; i++);
   }
   /* USER CODE END Error_Handler_Debug */
 }

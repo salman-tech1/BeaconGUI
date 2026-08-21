@@ -22,6 +22,7 @@
 #include "stm32h7xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "log.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -51,6 +52,27 @@
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+/* Common fault reporter: logs the faulting PC/LR and fault status registers,
+   then resets. Called from the naked fault handlers with the stacked frame. */
+void fault_report_c(uint32_t *frame, uint32_t exc_return, uint32_t id);
+void fault_report_c(uint32_t *frame, uint32_t exc_return, uint32_t id)
+{
+    static const char *const names[] = { "?", "MEMMANAGE", "BUSFAULT", "USAGEFAULT", "HARDFAULT" };
+    uint32_t cfsr = SCB->CFSR;
+    uint32_t hfsr = SCB->HFSR;
+    uint32_t pc   = frame[6];
+    uint32_t lr   = frame[5];
+
+    Log_Printf(LOG_LEVEL_ERROR, "FAULT",
+               "%s PC=0x%08lX LR=0x%08lX CFSR=0x%08lX HFSR=0x%08lX BFAR=0x%08lX (EXC=0x%08lX)",
+               names[(id <= 4U) ? id : 0U],
+               (unsigned long)pc, (unsigned long)lr,
+               (unsigned long)cfsr, (unsigned long)hfsr,
+               (unsigned long)SCB->BFAR, (unsigned long)exc_return);
+
+    NVIC_SystemReset();
+}
 
 /* USER CODE END 0 */
 
@@ -85,61 +107,65 @@ void NMI_Handler(void)
 /**
   * @brief This function handles Hard fault interrupt.
   */
-void HardFault_Handler(void)
+__attribute__((naked)) void HardFault_Handler(void)
 {
-  /* USER CODE BEGIN HardFault_IRQn 0 */
-
-  /* USER CODE END HardFault_IRQn 0 */
-  while (1)
-  {
-    /* USER CODE BEGIN W1_HardFault_IRQn 0 */
-    /* USER CODE END W1_HardFault_IRQn 0 */
-  }
+  __asm volatile (
+    "tst lr, #4          \n"
+    "ite eq              \n"
+    "mrseq r0, msp       \n"
+    "mrsne r0, psp       \n"
+    "mov  r1, lr         \n"
+    "movs r2, #4         \n"
+    "b    fault_report_c \n"
+  );
 }
 
 /**
   * @brief This function handles Memory management fault.
   */
-void MemManage_Handler(void)
+__attribute__((naked)) void MemManage_Handler(void)
 {
-  /* USER CODE BEGIN MemoryManagement_IRQn 0 */
-
-  /* USER CODE END MemoryManagement_IRQn 0 */
-  while (1)
-  {
-    /* USER CODE BEGIN W1_MemoryManagement_IRQn 0 */
-    /* USER CODE END W1_MemoryManagement_IRQn 0 */
-  }
+  __asm volatile (
+    "tst lr, #4          \n"
+    "ite eq              \n"
+    "mrseq r0, msp       \n"
+    "mrsne r0, psp       \n"
+    "mov  r1, lr         \n"
+    "movs r2, #1         \n"
+    "b    fault_report_c \n"
+  );
 }
 
 /**
   * @brief This function handles Pre-fetch fault, memory access fault.
   */
-void BusFault_Handler(void)
+__attribute__((naked)) void BusFault_Handler(void)
 {
-  /* USER CODE BEGIN BusFault_IRQn 0 */
-
-  /* USER CODE END BusFault_IRQn 0 */
-  while (1)
-  {
-    /* USER CODE BEGIN W1_BusFault_IRQn 0 */
-    /* USER CODE END W1_BusFault_IRQn 0 */
-  }
+  __asm volatile (
+    "tst lr, #4          \n"
+    "ite eq              \n"
+    "mrseq r0, msp       \n"
+    "mrsne r0, psp       \n"
+    "mov  r1, lr         \n"
+    "movs r2, #2         \n"
+    "b    fault_report_c \n"
+  );
 }
 
 /**
   * @brief This function handles Undefined instruction or illegal state.
   */
-void UsageFault_Handler(void)
+__attribute__((naked)) void UsageFault_Handler(void)
 {
-  /* USER CODE BEGIN UsageFault_IRQn 0 */
-
-  /* USER CODE END UsageFault_IRQn 0 */
-  while (1)
-  {
-    /* USER CODE BEGIN W1_UsageFault_IRQn 0 */
-    /* USER CODE END W1_UsageFault_IRQn 0 */
-  }
+  __asm volatile (
+    "tst lr, #4          \n"
+    "ite eq              \n"
+    "mrseq r0, msp       \n"
+    "mrsne r0, psp       \n"
+    "mov  r1, lr         \n"
+    "movs r2, #3         \n"
+    "b    fault_report_c \n"
+  );
 }
 
 /**
